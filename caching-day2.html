@@ -25,9 +25,10 @@ pre code{background:none;color:inherit;padding:0;font-size:1em}
 .mermaid{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:18px;margin:14px 0;text-align:center;overflow-x:auto;cursor:zoom-in;transition:border-color 0.15s}
 .mermaid:hover{border-color:rgba(100,200,255,0.4)}
 .mermaid svg{width:100%;max-width:100%;height:auto;min-height:280px}
-.lightbox{position:fixed;inset:0;background:rgba(8,12,18,0.96);z-index:9999;display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out;backdrop-filter:blur(4px)}
+.lightbox{position:fixed;inset:0;background:rgba(8,12,18,0.96);z-index:9999;display:none;align-items:center;justify-content:center;padding:24px;cursor:grab;backdrop-filter:blur(4px);overflow:hidden}
 .lightbox.open{display:flex}
-.lightbox svg{width:auto;height:auto;max-width:96vw;max-height:92vh}
+.lightbox.dragging{cursor:grabbing}
+.lightbox svg{width:auto;height:auto;max-width:96vw;max-height:92vh;transform-origin:center center;will-change:transform}
 .lightbox .hint{position:fixed;top:16px;right:20px;font-size:0.78rem;color:#7a8590;font-family:"SF Mono",Menlo,monospace;pointer-events:none}
 .callout{background:rgba(255,180,80,0.06);border-left:3px solid #ffb450;padding:12px 14px;margin:14px 0;border-radius:4px;font-size:0.94rem}
 .callout strong{color:#ffb450}
@@ -49,18 +50,41 @@ mermaid.initialize({startOnLoad:true,theme:'base',flowchart:{useMaxWidth:true,ht
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
   const lb=document.createElement('div');lb.className='lightbox';
-  lb.innerHTML='<span class="hint">click anywhere · Esc to close</span>';
+  lb.innerHTML='<span class="hint">scroll = zoom · drag = pan · Esc / click bg = close</span>';
   document.body.appendChild(lb);
-  const close=()=>{lb.classList.remove('open');const s=lb.querySelector('svg');if(s)s.remove()};
+  let scale=1,panX=0,panY=0,dragging=false,moved=false,lx=0,ly=0;
+  const apply=()=>{const s=lb.querySelector('svg');if(s)s.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`};
+  const reset=()=>{scale=1;panX=0;panY=0};
+  const close=()=>{lb.classList.remove('open');const s=lb.querySelector('svg');if(s)s.remove();reset()};
   document.addEventListener('click',e=>{
-    if(e.target.closest('.lightbox')){close();return}
+    if(e.target.closest('.lightbox')){if(moved){moved=false;return}close();return}
     const w=e.target.closest('.mermaid');if(!w)return;
     const svg=w.querySelector('svg');if(!svg)return;
     const c=svg.cloneNode(true);c.removeAttribute('style');
     c.style.maxWidth='96vw';c.style.maxHeight='92vh';
-    lb.appendChild(c);lb.classList.add('open');
+    lb.appendChild(c);lb.classList.add('open');reset();apply();
   });
   document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  lb.addEventListener('wheel',e=>{
+    if(!lb.classList.contains('open'))return;
+    e.preventDefault();
+    const svg=lb.querySelector('svg');if(!svg)return;
+    const ns=Math.max(0.3,Math.min(10,scale*(1-e.deltaY*0.002)));
+    const r=svg.getBoundingClientRect();
+    const cx=e.clientX-(r.left+r.width/2),cy=e.clientY-(r.top+r.height/2);
+    const k=ns/scale-1;panX-=cx*k;panY-=cy*k;scale=ns;apply();
+  },{passive:false});
+  lb.addEventListener('mousedown',e=>{
+    if(!lb.classList.contains('open'))return;
+    dragging=true;moved=false;lx=e.clientX;ly=e.clientY;lb.classList.add('dragging');e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const dx=e.clientX-lx,dy=e.clientY-ly;
+    if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
+    panX+=dx;panY+=dy;lx=e.clientX;ly=e.clientY;apply();
+  });
+  document.addEventListener('mouseup',()=>{dragging=false;lb.classList.remove('dragging')});
 });
 </script>
 </head><body><div class="container">
