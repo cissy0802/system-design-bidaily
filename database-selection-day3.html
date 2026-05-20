@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 3 · 数据库选型 — System Design Bi-daily</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"SF Pro Display","Noto Sans SC",sans-serif;background:#0e1419;color:#d4dae0;line-height:1.75}
+.container{max-width:820px;margin:0 auto;padding:24px 20px 60px}
+header{padding:40px 0 28px;border-bottom:1px solid rgba(100,200,255,0.15);margin-bottom:32px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;font-size:0.78rem}
+.tag{padding:3px 10px;border-radius:4px;background:rgba(100,200,255,0.12);color:#64c8ff;border:1px solid rgba(100,200,255,0.25)}
+.tag.diff{background:rgba(94,234,212,0.1);color:#5eead4;border-color:rgba(94,234,212,0.3)}
+.tag.day{background:rgba(255,180,80,0.1);color:#ffb450;border-color:rgba(255,180,80,0.25)}
+h1{font-size:1.75rem;font-weight:800;background:linear-gradient(135deg,#64c8ff 0%,#5eead4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px;line-height:1.3}
+h1 .en{display:block;font-size:1rem;color:#7a8590;-webkit-text-fill-color:#7a8590;margin-top:6px;font-weight:500}
+h2{font-size:1.2rem;color:#5eead4;margin:36px 0 14px;padding-left:12px;border-left:3px solid #5eead4}
+h3{font-size:1rem;color:#64c8ff;margin:20px 0 10px;font-weight:600}
+p{margin:10px 0;color:#c8cfd6}
+ul,ol{margin:10px 0 10px 22px;color:#c8cfd6}
+li{margin:6px 0}
+strong{color:#e8eef5;font-weight:600}
+em{color:#5eead4;font-style:normal;font-weight:500}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;background:rgba(100,200,255,0.1);color:#5eead4;padding:1px 6px;border-radius:3px;font-size:0.88em}
+pre{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.84rem;line-height:1.55;color:#c8cfd6}
+pre code{background:none;color:inherit;padding:0;font-size:1em}
+.mermaid{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:18px;margin:14px 0;text-align:center;overflow-x:auto;cursor:zoom-in;transition:border-color 0.15s}
+.mermaid:hover{border-color:rgba(100,200,255,0.4)}
+.mermaid svg{width:100%;max-width:100%;height:auto;min-height:280px}
+.lightbox{position:fixed;inset:0;background:rgba(8,12,18,0.96);z-index:9999;display:none;align-items:center;justify-content:center;padding:24px;cursor:grab;backdrop-filter:blur(4px);overflow:hidden}
+.lightbox.open{display:flex}
+.lightbox.dragging{cursor:grabbing}
+.lightbox svg{width:auto;height:auto;max-width:96vw;max-height:92vh;transform-origin:center center;will-change:transform}
+.lightbox .hint{position:fixed;top:16px;right:20px;font-size:0.78rem;color:#7a8590;font-family:"SF Mono",Menlo,monospace;pointer-events:none}
+.callout{background:rgba(255,180,80,0.06);border-left:3px solid #ffb450;padding:12px 14px;margin:14px 0;border-radius:4px;font-size:0.94rem}
+.callout strong{color:#ffb450}
+.tradeoff{background:rgba(100,200,255,0.05);border:1px solid rgba(100,200,255,0.2);border-radius:6px;padding:12px 14px;margin:12px 0;font-size:0.94rem}
+.case{background:rgba(94,234,212,0.05);border-left:3px solid #5eead4;padding:12px 14px;margin:12px 0;border-radius:4px;font-size:0.94rem}
+.case strong{color:#5eead4}
+.nav{margin-top:50px;padding-top:24px;border-top:1px solid rgba(100,200,255,0.15);text-align:center}
+.nav a{color:#64c8ff;text-decoration:none;font-size:0.92rem;padding:8px 16px;border:1px solid rgba(100,200,255,0.3);border-radius:4px;transition:all 0.15s}
+.nav a:hover{background:rgba(100,200,255,0.1)}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.9rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid rgba(100,200,255,0.15)}
+th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
+details{background:rgba(100,200,255,0.04);border:1px solid rgba(100,200,255,0.18);border-radius:6px;padding:12px 16px;margin:10px 0;transition:all 0.15s}
+details:hover{border-color:rgba(100,200,255,0.35)}
+details[open]{background:rgba(94,234,212,0.05);border-color:rgba(94,234,212,0.3)}
+details summary{font-weight:600;color:#e8eef5;list-style:none;outline:none;cursor:pointer;display:flex;align-items:flex-start;gap:10px;font-size:0.96rem}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:'▶';color:#64c8ff;font-size:0.75em;transition:transform 0.2s;flex-shrink:0;margin-top:5px}
+details[open] summary::before{transform:rotate(90deg);color:#5eead4}
+details .answer{margin-top:12px;padding-top:12px;border-top:1px dashed rgba(100,200,255,0.18);color:#c8cfd6;font-size:0.93rem;line-height:1.7}
+details .answer ul,details .answer ol{margin:6px 0 6px 22px}
+@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}pre{font-size:0.72rem}}
+</style>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:true,theme:'base',flowchart:{useMaxWidth:true,htmlLabels:true,nodeSpacing:50,rankSpacing:60},themeVariables:{primaryColor:'#1a2530',primaryTextColor:'#e8eef5',primaryBorderColor:'#64c8ff',lineColor:'#5eead4',secondaryColor:'#0e1419',tertiaryColor:'#0a0f14',background:'#0a0f14',mainBkg:'#1a2530',secondBkg:'#0e1419',textColor:'#d4dae0',fontFamily:'-apple-system,"SF Pro Display",sans-serif',fontSize:'16px'}});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const lb=document.createElement('div');lb.className='lightbox';
+  lb.innerHTML='<span class="hint">scroll = zoom · drag = pan · Esc / click bg = close</span>';
+  document.body.appendChild(lb);
+  let scale=1,panX=0,panY=0,dragging=false,moved=false,lx=0,ly=0;
+  const apply=()=>{const s=lb.querySelector('svg');if(s)s.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`};
+  const reset=()=>{scale=1;panX=0;panY=0};
+  const close=()=>{lb.classList.remove('open');const s=lb.querySelector('svg');if(s)s.remove();reset()};
+  document.addEventListener('click',e=>{
+    if(e.target.closest('.lightbox')){if(moved){moved=false;return}close();return}
+    const w=e.target.closest('.mermaid');if(!w)return;
+    const svg=w.querySelector('svg');if(!svg)return;
+    const c=svg.cloneNode(true);c.removeAttribute('style');
+    c.style.maxWidth='96vw';c.style.maxHeight='92vh';
+    lb.appendChild(c);lb.classList.add('open');reset();apply();
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  lb.addEventListener('wheel',e=>{
+    if(!lb.classList.contains('open'))return;
+    e.preventDefault();
+    const svg=lb.querySelector('svg');if(!svg)return;
+    const ns=Math.max(0.3,Math.min(10,scale*(1-e.deltaY*0.002)));
+    const r=svg.getBoundingClientRect();
+    const cx=e.clientX-(r.left+r.width/2),cy=e.clientY-(r.top+r.height/2);
+    const k=ns/scale-1;panX-=cx*k;panY-=cy*k;scale=ns;apply();
+  },{passive:false});
+  lb.addEventListener('mousedown',e=>{
+    if(!lb.classList.contains('open'))return;
+    dragging=true;moved=false;lx=e.clientX;ly=e.clientY;lb.classList.add('dragging');e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const dx=e.clientX-lx,dy=e.clientY-ly;
+    if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
+    panX+=dx;panY+=dy;lx=e.clientX;ly=e.clientY;apply();
+  });
+  document.addEventListener('mouseup',()=>{dragging=false;lb.classList.remove('dragging')});
+});
+</script>
+</head><body><div class="container">
+
+<header>
+<div class="meta">
+<span class="tag day">Day 3</span>
+<span class="tag diff">Medium</span>
+<span class="tag">Database</span>
+<span class="tag">SQL/NoSQL</span>
+<span class="tag">OLTP/OLAP</span>
+<span class="tag">ACID/BASE</span>
+</div>
+<h1>数据库选型 — Postgres、DynamoDB、Cassandra、Redis 怎么选<span class="en">Choosing the Right Database: SQL vs NoSQL, OLTP vs OLAP, ACID vs BASE</span></h1>
+</header>
+
+<h2>问题场景</h2>
+<p>『选 MySQL 还是 MongoDB』是工程师最容易翻车的决策之一。<strong>选错的代价不是性能问题，而是 1-2 年内的迁移地狱</strong>：Uber 2016 年从 Postgres 迁回 MySQL（『为什么 Uber 改用 MySQL』那篇博客）、Discord 2017 年从 MongoDB 迁到 Cassandra 再迁到 ScyllaDB、Airbnb 2020 年从 MySQL 拆分出 DynamoDB 承接消息和支付——每次都付出几个工程季度。</p>
+<p>本期讲清楚四件事：<em>SQL vs NoSQL 的本质差异、OLTP vs OLAP 的查询模式、ACID vs BASE 的取舍、什么场景选哪个具体产品（Postgres / DynamoDB / Cassandra / Redis）</em>。最重要的认知：<em>『数据库』不是一类产品，是 6-7 类不同范畴的东西</em>。</p>
+
+<h2>需求与约束（面试必问）</h2>
+<ul>
+<li><strong>数据模型</strong>：是关系强（订单、支付、社交关系）、还是半结构化（事件流、用户画像）、还是 KV（session、计数器）、还是时序（监控指标）、还是图（推荐、风控）？</li>
+<li><strong>读写比与 QPS</strong>：1000:1 重读（用 read replica / CDN），1:10 重写（要 LSM-tree 存储引擎），10w QPS 以上单机 RDBMS 撑不住。</li>
+<li><strong>数据量与增长率</strong>：100GB 单机可以；1TB 进入分片考虑；100TB+ 必须分布式。</li>
+<li><strong>一致性要求</strong>：账户余额需要 strong consistency；社交动态可以 eventual。</li>
+<li><strong>查询模式</strong>：点查（GET by PK）、范围扫描、聚合分析、全文搜索、地理查询，每种各有最优引擎。</li>
+<li><strong>延迟目标</strong>：p99 &lt; 10ms？需要内存型（Redis、DynamoDB）；p99 &lt; 100ms？关系型够用；p99 &lt; 5s？OLAP 可以。</li>
+<li><strong>团队熟悉度</strong>：能 24×7 oncall 的 DBA 才是真实约束，Cassandra 没人会调你别用。</li>
+</ul>
+
+<h2>高层架构（数据库范畴地图）</h2>
+<pre class="mermaid">
+graph TD
+    APP["应用层 / Application"]
+    APP --> OLTP["OLTP 在线事务"]
+    APP --> OLAP["OLAP 分析"]
+    APP --> CACHE["KV / Cache"]
+    APP --> SEARCH["搜索引擎"]
+    APP --> TS["时序库"]
+    APP --> GRAPH["图数据库"]
+
+    OLTP --> PG["Postgres / MySQL<br/><i>关系型 · ACID</i>"]
+    OLTP --> DDB["DynamoDB / Cassandra<br/><i>分布式 KV · BASE</i>"]
+    OLTP --> MONGO["MongoDB<br/><i>文档 · 灵活 schema</i>"]
+
+    OLAP --> SF["Snowflake / BigQuery<br/><i>列存 · 仓库</i>"]
+    OLAP --> CLICK["ClickHouse / Druid<br/><i>实时分析</i>"]
+
+    CACHE --> REDIS["Redis / Memcached<br/><i>内存 KV</i>"]
+
+    SEARCH --> ES["Elasticsearch / OpenSearch"]
+    TS --> PROM["Prometheus / InfluxDB / TimescaleDB"]
+    GRAPH --> NEO["Neo4j / Neptune / TigerGraph"]
+
+    classDef app fill:#1a2530,stroke:#64c8ff,color:#e8eef5
+    classDef cat fill:#0e2030,stroke:#5eead4,color:#e8eef5
+    classDef db fill:#1a1a30,stroke:#ffb450,color:#e8eef5
+    class APP app
+    class OLTP,OLAP,CACHE,SEARCH,TS,GRAPH cat
+    class PG,DDB,MONGO,SF,CLICK,REDIS,ES,PROM,NEO db
+</pre>
+<p style="font-size:0.88rem;color:#7a8590;text-align:center;margin-top:-6px">真实系统通常是『多模 polyglot persistence』——一个产品后端用 4-6 种 DB 是常态</p>
+
+<h2>关键技术点</h2>
+
+<h3>1. SQL vs NoSQL — 不是『谁更好』而是『建模思路截然不同』</h3>
+<p><strong>原理</strong>：SQL 数据库（Postgres、MySQL、Oracle）以 <em>关系代数</em> 为模型——表 + 主外键，<em>schema-on-write</em>（写时强制结构），靠 <code>JOIN</code> 在查询时拼装。NoSQL（DynamoDB、Cassandra、MongoDB）放弃 JOIN 与多表事务，换取<em>水平扩展、灵活 schema、可预测延迟</em>，本质是『把 join 移到写入时』——通过反范式（denormalization）把要一起读的数据预先放一起。</p>
+<table>
+<thead><tr><th></th><th>SQL（Postgres）</th><th>NoSQL（DynamoDB / Cassandra）</th><th>Document（MongoDB）</th></tr></thead>
+<tbody>
+<tr><td>数据模型</td><td>表 · 行 · 关系</td><td>KV / 宽列</td><td>JSON 文档</td></tr>
+<tr><td>Schema</td><td>强制（write-time）</td><td>无（read-time）</td><td>灵活</td></tr>
+<tr><td>事务</td><td>多行多表 ACID</td><td>单行/单分区（有限）</td><td>4.0+ 多文档事务</td></tr>
+<tr><td>水平扩展</td><td>难（要分片中间件）</td><td>原生（按 hash key）</td><td>原生（sharded cluster）</td></tr>
+<tr><td>JOIN</td><td>原生、高效</td><td>无（要 app 端做）</td><td>$lookup（慢）</td></tr>
+<tr><td>典型 QPS</td><td>1w-10w 单机</td><td>百万级（集群）</td><td>5w 集群</td></tr>
+<tr><td>典型场景</td><td>订单、支付、ERP</td><td>用户画像、消息、session</td><td>CMS、产品目录</td></tr>
+</tbody></table>
+<div class="tradeoff">
+<strong>Trade-off：</strong>
+<ul>
+<li><strong>SQL</strong>：✅ 关系建模简洁、强一致、JOIN 灵活、生态成熟（ORM/迁移工具/BI）；❌ 单机瓶颈在 1-10w QPS、分片困难、schema 变更要 migration。</li>
+<li><strong>KV / 宽列</strong>（DynamoDB / Cassandra）：✅ 水平扩展无上限、可预测 p99、运维全托管（DDB）；❌ 必须按访问模式建模（access-pattern-first），改一个查询要重建表，不会的人写出来比 SQL 慢 10 倍。</li>
+<li><strong>Document</strong>（MongoDB）：✅ 嵌套对象友好（购物车、用户配置）、schema 灵活；❌ JOIN 弱、聚合慢、事务后引入开销大。</li>
+</ul></div>
+<pre><code># SQL：关系建模 — 三张表 + JOIN
+SELECT u.name, o.total
+FROM users u JOIN orders o ON o.user_id=u.id
+WHERE o.created_at &gt; NOW() - INTERVAL '7 days';
+
+# DynamoDB：访问模式建模 — 一张表搞定，PK 拼接
+# PK=USER#123  SK=ORDER#2026-05-15#ord_abc  -&gt; total, name(冗余)
+# Query: PK=USER#123 AND SK begins_with ORDER#
+#   一次返回该用户的所有订单, 无 JOIN
+ddb.query(
+  KeyConditionExpression="PK=:u AND begins_with(SK, :p)",
+  ExpressionAttributeValues={":u":"USER#123", ":p":"ORDER#"}
+)
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Uber</strong>：早期用 Postgres，规模膨胀后迁回 MySQL（更可控的复制和分片），核心 Schemaless 是 MySQL 上自建的 KV 层。</li>
+<li><strong>Amazon</strong>：购物车、推荐、订单元数据用 DynamoDB；Prime Day 2024 单日峰值 1.46 亿次 DDB 请求/秒。</li>
+<li><strong>Discord</strong>：消息从 MongoDB（4B 文档时挂掉）迁到 Cassandra（180B 消息），再迁到 ScyllaDB（Rust 重写、p99 从 40ms 降到 15ms）。</li>
+<li><strong>Stripe</strong>：核心账本用 MongoDB（早期）+ 自研事务层，后来分片到大量 MongoDB 集群；新业务在评估 TiDB / CockroachDB。</li>
+<li><strong>Shopify</strong>：核心 OLTP 还是 MySQL，按商家分片（pod 架构），单 pod 内是完整 MySQL 集群。</li>
+</ul></div>
+
+<h3>2. OLTP vs OLAP — 一个数据库不可能既快又会分析</h3>
+<p><strong>原理</strong>：<em>OLTP</em>（Online Transaction Processing）面向高并发短事务——一次更新订单 1 行；<em>OLAP</em>（Online Analytical Processing）面向大范围扫描聚合——一次查 1 亿行算月销售额。两者的存储引擎截然不同：</p>
+<ul>
+<li><strong>OLTP 用<em>行存（row-oriented）</em></strong>：一行数据物理上连续存储，按 PK 取整行 O(1)；典型：Postgres、MySQL、DynamoDB。</li>
+<li><strong>OLAP 用<em>列存（columnar）</em></strong>：同一列的所有值连续存——扫 1 亿行的 <code>SUM(amount)</code> 时只读 <code>amount</code> 那一列，IO 量是行存的 1/N；同列同类型还能高压缩比（10x+）；典型：ClickHouse、Snowflake、BigQuery、Parquet。</li>
+</ul>
+<div class="tradeoff">
+<strong>Trade-off：</strong>
+<ul>
+<li><strong>OLTP（行存）</strong>：✅ 单行读写极快、事务支持好；❌ 大范围扫描慢（每行都要读完整行）、压缩比低、不适合 BI。</li>
+<li><strong>OLAP（列存）</strong>：✅ 聚合查询快 10-100 倍、高压缩省存储、并行扫描友好；❌ 单行更新昂贵（要重写多个列文件）、点查（按 PK 取一行）慢、事务支持弱。</li>
+<li><strong>HTAP</strong>（Hybrid，混合负载）：TiDB、CockroachDB、SingleStore、Snowflake Unistore 试图『一库两用』，代价是两个存储引擎都要维护、行列同步有延迟。</li>
+</ul></div>
+<div class="callout">
+<strong>实战准则：</strong>OLTP 跟 OLAP <em>分开存储</em>。通过 CDC（Debezium / DynamoDB Streams）或定期 ETL 把数据从 Postgres / MySQL 同步到 Snowflake / BigQuery / ClickHouse。不要在 OLTP 上跑 BI 查询——一个慢分析查询能锁死整个生产库。</p>
+</div>
+<pre><code># 行存（Postgres）扫 1 亿行算总销售：读完整 100M 行 × 50 列 = 50GB IO
+SELECT SUM(amount) FROM orders WHERE created_at &gt; '2026-01-01';
+-- 全表扫描, 30 秒, 阻塞写入
+
+# 列存（ClickHouse）：只读 amount + created_at 两列, 压缩后约 200MB
+SELECT sum(amount) FROM orders WHERE created_at &gt; '2026-01-01';
+-- 同样数据量, 200ms, 并行扫描 8 核
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Netflix</strong>：OLTP 用 Cassandra + DynamoDB；分析在 S3 + Iceberg + Trino + Druid（用户实时指标）。</li>
+<li><strong>Cloudflare</strong>：日志 35M events/sec 进 ClickHouse，p99 查询 200ms。开源博客『ClickHouse Capacity Estimation』必读。</li>
+<li><strong>Uber</strong>：OLTP 是 MySQL/Schemaless；分析建在 HDFS + Pinot（实时仪表盘）+ Presto（ad-hoc 查询）。</li>
+<li><strong>Snowflake</strong>：纯 OLAP，存计算分离架构，2024 年存了 6+ EB 客户数据。</li>
+<li><strong>Shopify Analytics</strong>：从生产 MySQL CDC 到 ClickHouse，商家后台报表查询从 30s 降到 300ms。</li>
+</ul></div>
+
+<h3>3. ACID vs BASE — 一致性的两种世界观</h3>
+<p><strong>原理</strong>：</p>
+<ul>
+<li><strong>ACID</strong>（Atomicity、Consistency、Isolation、Durability）是关系型数据库的承诺：事务要么全成要么全失败、并发不互相干扰、提交后绝不丢。<em>实现代价</em>：锁、MVCC、WAL，单机吞吐受限。</li>
+<li><strong>BASE</strong>（Basically Available、Soft state、Eventually consistent）是分布式 NoSQL 的妥协：放弃强事务，换取永远可用 + 水平扩展。<em>典型</em>：DynamoDB（默认 eventually consistent）、Cassandra（可调一致性）、S3（read-after-write 但 list 是 eventual）。</li>
+</ul>
+<p>关键：『ACID』和『BASE』不是非黑即白。Postgres 默认 Read Committed 不是 Serializable；DynamoDB 提供 <code>ConsistentRead=true</code> 选项（双倍 RCU）；Spanner / CockroachDB 用 TrueTime / HLC 在分布式系统上做到全局 Serializable。</p>
+<table>
+<thead><tr><th>隔离级别</th><th>能避免的异常</th><th>典型数据库默认</th></tr></thead>
+<tbody>
+<tr><td>Read Uncommitted</td><td>无（脏读都允许）</td><td>极少用</td></tr>
+<tr><td>Read Committed</td><td>脏读</td><td>Postgres、Oracle 默认</td></tr>
+<tr><td>Repeatable Read</td><td>脏读 + 不可重复读</td><td>MySQL InnoDB 默认</td></tr>
+<tr><td>Snapshot Isolation</td><td>+ Phantom（大多数情况）</td><td>Postgres、Oracle、SQL Server</td></tr>
+<tr><td>Serializable</td><td>全部</td><td>Postgres SSI、Spanner、CockroachDB</td></tr>
+</tbody></table>
+<div class="callout">
+<strong>常见误区：</strong>『MySQL 是 ACID 所以一定强一致』错。MySQL 主从异步复制下，刚提交的事务在 replica 上还看不见——这就是 <em>read replica</em> 的 lag。要 read-your-writes 要么读主、要么用 semi-sync replication，要么等 GTID。
+</div>
+<pre><code># Postgres 显式事务（ACID）
+BEGIN;
+  UPDATE accounts SET balance=balance-100 WHERE id=1;
+  UPDATE accounts SET balance=balance+100 WHERE id=2;
+COMMIT;  -- 两行要么都改要么都不改, 别人看不到中间状态
+
+# DynamoDB 单分区事务（有限 ACID）：TransactWriteItems
+ddb.transact_write_items(TransactItems=[
+  {"Update":{"Key":{"PK":"ACC#1"}, "UpdateExpression":"SET bal=bal-:v", ...}},
+  {"Update":{"Key":{"PK":"ACC#2"}, "UpdateExpression":"SET bal=bal+:v", ...}},
+])
+# 25 个 item 上限, 2x WCU 成本, 跨表跨区都支持
+
+# Cassandra LWT（Lightweight Transaction）：Paxos 协议, 4x 写代价
+UPDATE users SET email='x@y' WHERE id=123 IF email='old@y';
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Stripe</strong>：核心账本必须 ACID，用 MongoDB + 自研 2PC + idempotency key 实现，最近迁向 TiDB 评估。</li>
+<li><strong>Google Spanner</strong>：全球部署的 Serializable RDBMS，靠 TrueTime（GPS+原子钟）做外部一致性，Google 广告系统在用。</li>
+<li><strong>Amazon DynamoDB</strong>：2018 年加入 transactions（最多 25 items），让 Amazon Pay 等业务从 Aurora 迁过来。</li>
+<li><strong>Airbnb 支付</strong>：用 Saga（见 Day 7）+ outbox pattern，在 MySQL 上模拟『跨服务最终一致』。</li>
+</ul></div>
+
+<h3>4. 选型决策树 — Postgres / DynamoDB / Cassandra / Redis</h3>
+<p><strong>原理</strong>：90% 的项目应该<em>先选 Postgres</em>，等遇到具体瓶颈再换。下面是一个粗粒度决策矩阵：</p>
+<table>
+<thead><tr><th></th><th>Postgres</th><th>DynamoDB</th><th>Cassandra</th><th>Redis</th></tr></thead>
+<tbody>
+<tr><td>架构</td><td>单 leader + replica</td><td>全托管多 region</td><td>无主多副本</td><td>主从 + cluster</td></tr>
+<tr><td>一致性</td><td>Strong（默认）</td><td>Eventual（默认）/ Strong（可选）</td><td>Tunable（ONE/QUORUM/ALL）</td><td>异步弱一致</td></tr>
+<tr><td>典型延迟（p99）</td><td>5-20ms</td><td>10ms</td><td>5-15ms</td><td>&lt;1ms</td></tr>
+<tr><td>扩展上限</td><td>~50TB / 10w QPS</td><td>无上限</td><td>PB 级 / 百万 QPS</td><td>TB 级（内存）</td></tr>
+<tr><td>事务</td><td>完整 ACID</td><td>25-item 事务</td><td>LWT（贵）</td><td>MULTI（单节点）</td></tr>
+<tr><td>JOIN/聚合</td><td>强</td><td>无</td><td>无</td><td>无</td></tr>
+<tr><td>运维成本</td><td>中（要 DBA）</td><td>低（全托管）</td><td>高（要团队）</td><td>低</td></tr>
+<tr><td>成本</td><td>$$（IOPS 贵）</td><td>$$$（按请求）</td><td>$$（自建）</td><td>$$（内存贵）</td></tr>
+<tr><td>选它当</td><td>关系强、需 JOIN、强一致</td><td>访问模式确定、要弹性</td><td>写多、跨多 DC、PB 级</td><td>缓存、计数器、ratelimit</td></tr>
+</tbody></table>
+<pre><code># 选型伪代码（粗粒度）
+def pick_db(req):
+    if req.latency_p99 &lt; 1ms or req.is_ephemeral:
+        return "Redis"           # session / cache / counter / rate-limit
+    if req.query_pattern == "analytics":
+        return "ClickHouse / Snowflake"
+    if req.needs_joins or req.needs_complex_transactions:
+        return "Postgres"        # 90% 的业务从这里开始
+    if req.qps &gt; 100_000 and req.access_pattern_is_fixed:
+        return "DynamoDB"        # 团队小、要全托管
+    if req.data_volume &gt; 100_TB and req.write_heavy:
+        return "Cassandra/ScyllaDB"  # 团队大、要 PB
+    if req.is_search:
+        return "Elasticsearch"
+    return "Postgres"            # 默认选它
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Notion</strong>：核心数据全部在 Postgres，2021 年单库到 480 个 logical shards（自研中间件），block 表 20B 行。</li>
+<li><strong>Figma</strong>：Postgres 主库 + 横向分片到 multi-cluster；2023 年博客详述他们如何在不停服下分片。</li>
+<li><strong>Reddit</strong>：Postgres + Cassandra（post + comments）+ Redis（vote count + listing cache）。</li>
+<li><strong>Lyft</strong>：DynamoDB（ride state）+ Postgres（user/profile）+ Redis（geo-index 缓存）+ Druid（分析）。</li>
+<li><strong>GitHub</strong>：MySQL 多个分片（按 repo）+ Redis（counter + queue）+ Elasticsearch（代码搜索）+ ClickHouse（日志分析）。</li>
+</ul></div>
+
+<h2>扩展与优化（增长后怎么办）</h2>
+<ul>
+<li><strong>Postgres 单机 → 分片</strong>：先垂直拆（按表）、再水平拆（按 user_id hash）。工具：Citus（已被微软收购）、Vitess（MySQL）、PgCat（连接池+分片）。</li>
+<li><strong>Read 越来越多</strong>：加 read replica；注意 replication lag（见 Day 5），关键读路径走主。</li>
+<li><strong>Schema 演进</strong>：永远 backward-compatible（先加列、再写双份、再读新列、再删旧列），避免长事务的 ALTER TABLE。工具：gh-ost、pt-online-schema-change。</li>
+<li><strong>引入第二种 DB</strong>：典型路径 = Postgres + Redis（缓存 + queue）→ 加 ClickHouse（分析）→ 加 Elasticsearch（搜索）。</li>
+<li><strong>多区域</strong>：DynamoDB Global Tables、Spanner、CockroachDB 原生支持；Postgres 跨区要么 logical replication（异步）要么 BDR（贵）。</li>
+<li><strong>瓶颈识别</strong>：监控连接数、慢查询（pg_stat_statements）、buffer cache hit ratio、replication lag、磁盘 IOPS。</li>
+</ul>
+
+<h2>常见陷阱（资深工程师也常翻车）</h2>
+<div class="callout">
+<strong>1. 把 NoSQL 当 SQL 用</strong>：在 DynamoDB 上做 scan + filter（不走 PK），单次查询消耗几千 RCU、延迟几秒——这是用法错了，不是 DDB 慢。NoSQL 必须『访问模式优先』建模。
+</div>
+<div class="callout">
+<strong>2. MongoDB 当真相源跑账户</strong>：4.0 之前没有跨文档事务，多个集合更新可能错乱。即使有事务，分片集群下成本也高，账务系统不建议。
+</div>
+<div class="callout">
+<strong>3. Redis 当 source of truth</strong>：RDB / AOF 持久化是 best-effort，宕机会丢秒级数据。账户余额要写穿到 Postgres，Redis 只做读路径加速。
+</div>
+<div class="callout">
+<strong>4. 在 OLTP 上跑大分析</strong>：一个 <code>SELECT COUNT(*) FROM orders</code> 全表扫，能把生产 RDS 锁死、replication 卡死、p99 跳到几秒。务必走 read replica 或异步 ETL 到仓库。
+</div>
+<div class="callout">
+<strong>5. 跨表事务 + 微服务</strong>：把两个 service 的数据库放进一个分布式事务是反模式。用 Saga / Outbox（见 Day 7）做最终一致。
+</div>
+<div class="callout">
+<strong>6. 过早选 Cassandra / Kafka / Elasticsearch</strong>：『大厂都用所以我用』是糟糕的理由。运维一个 Cassandra 集群至少要 2 个全职 SRE，10 人小团队应该用 Postgres + 托管缓存撑到 1M MAU 再考虑。
+</div>
+
+<h2>面试问题示例</h2>
+<ol>
+<li>设计 Instagram 的 user-following 关系，1B 用户、平均 200 关注、Justin Bieber 600M 粉丝。选什么 DB？怎么建模？</li>
+<li>为什么 Discord 从 MongoDB 迁到 Cassandra 再迁到 ScyllaDB？每一步解决了什么问题？</li>
+<li>设计一个『银行转账』系统，要求 1000 TPS 且不能丢钱。能用 DynamoDB 吗？为什么？</li>
+<li>Postgres 单机 5w QPS 到了，你想扩展。读多写少 vs 写多读少分别怎么办？什么时候考虑分片？</li>
+<li>解释一下：MySQL 的 Repeatable Read 默认其实<em>不防 phantom</em>但实测好像防了，为什么？（gap lock）</li>
+</ol>
+
+<h2>关键资源</h2>
+<ul>
+<li><strong>《Designing Data-Intensive Applications》Ch 2 + Ch 3</strong>（Kleppmann）：数据模型、存储引擎、SSTable vs B-Tree 必读。</li>
+<li><strong>Amazon DynamoDB Paper (2022 USENIX ATC)</strong>：DDB 内部架构白皮书，第一次公开 partition / replication / autoscaling 实现。</li>
+<li><strong>Discord blog: How Discord stores trillions of messages</strong>：MongoDB → Cassandra → ScyllaDB 的完整迁移故事。</li>
+</ul>
+
+<h2>English Summary</h2>
+<p>Database selection is a long-term decision: migrations cost engineering quarters. SQL (Postgres/MySQL) gives you relational modeling, ACID transactions, and JOINs, capped around 10-50TB and 100k QPS single-node. NoSQL (DynamoDB/Cassandra) trades joins and multi-row transactions for horizontal scale, predictable p99 latency, and access-pattern-first modeling. OLTP and OLAP are fundamentally different storage engines (row vs columnar) and should be separated — never run BI on the production transactional DB. Redis is a cache, not a source of truth. <em>Default to Postgres</em> and only adopt specialized stores (Cassandra, DynamoDB, ClickHouse, Elasticsearch) when measurable bottlenecks demand them.</p>
+
+<h2>深入思考（点击展开答案）</h2>
+
+<details>
+<summary>1. 为什么列存的 OLAP 系统聚合查询能比行存快 10-100 倍？这个『10-100x』里有几个独立来源？</summary>
+<div class="answer">
+<p>不是『一个原因 100 倍』，而是『几个 2-3 倍叠加』。</p>
+<ul>
+<li><strong>IO 量减少（5-50x）</strong>：50 列的表只读 2 列做 <code>SUM(amount)</code>，理论上 IO 缩 25 倍；实践中由于 page 对齐和压缩，3-10 倍很常见。</li>
+<li><strong>压缩率（3-10x）</strong>：同一列同类型数据熵低，dictionary encoding、RLE、bit-packing 压到 1/10。读取磁盘 IO 又少一个量级。</li>
+<li><strong>向量化执行（2-4x）</strong>：列存可以让 CPU 用 SIMD 一次处理 8-16 个值（AVX-512），相比逐行处理快几倍。ClickHouse、DuckDB 都是 vectorized engine。</li>
+<li><strong>谓词下推 + 跳过 block（2-10x）</strong>：列存按 chunk（如 8K 行）存储每列 min/max，<code>WHERE date &gt; '2026-01-01'</code> 直接跳过不相关 chunk，IO 又减少。</li>
+<li><strong>并行扫描（4-16x）</strong>：列存天然适合多 CPU 并行（每个 CPU 扫一段），行存因 row lock / shared structure 并行难。</li>
+</ul>
+<p>叠起来轻松 100 倍。但反过来——<em>列存做 PK 点查（取一整行 50 列）</em>要从 50 个列文件各读一段再拼装，反而比行存慢 10 倍。所以两类引擎不是『谁取代谁』，是<em>各干各的</em>。</p>
+</div>
+</details>
+
+<details>
+<summary>2. 在 DynamoDB 上你刚学会 single-table design 把所有实体放一张表。3 个月后产品要『按 email 查 user』，原表 PK=USER#&lt;uid&gt;。你有几种解法，各自代价？</summary>
+<div class="answer">
+<ul>
+<li><strong>① GSI（Global Secondary Index）</strong>：建一个 GSI，PK=EMAIL#&lt;email&gt;。<em>代价</em>：GSI 异步复制有秒级 lag、写入要双倍 WCU（主表 + GSI）、GSI 不支持 strong consistent read。最常见的解法。</li>
+<li><strong>② Scan + Filter</strong>：直接全表扫。<em>代价</em>：千万行 = 几十秒 + 几千 RCU 成本，每次 $$$，绝对不能上生产。</li>
+<li><strong>③ 反向 item</strong>：在原表插一行 <code>PK=EMAIL#&lt;email&gt; SK=USER, uid=...</code>，应用层维护 user 和 email 项的双写。<em>代价</em>：自己维护一致性（双写有可能不同步）、占主表 storage。早期 DDB 没 GSI 时常用，现在不推荐。</li>
+<li><strong>④ 外置二级索引</strong>：写 ElasticSearch 或 Redis 维护 email → uid 映射。<em>代价</em>：多一个系统、CDC 链路要可靠（DDB Streams → Lambda → ES）、最终一致。</li>
+<li><strong>⑤ 重新设计 PK</strong>：极端情况下改用 email 当 PK，uid 走 GSI。<em>代价</em>：完全推翻历史，所有访问改路径，几乎不可行。</li>
+</ul>
+<p><em>实战</em>：99% 的情况是 ①。但要在<em>设计阶段</em>就预判未来的访问模式，避免事后改造。这就是『access pattern first』的含义——不是省事，是 DDB 模型逼你提前想清楚。</p>
+</div>
+</details>
+
+<details>
+<summary>3. 『Postgres 单机能撑到多少 QPS / 多大数据量』这个问题，正确的回答方式是什么？10w QPS 是哪个维度的瓶颈先到？</summary>
+<div class="answer">
+<p>错误回答：『10w QPS』『1TB』——任何固定数字都是错的，因为<em>瓶颈维度取决于负载特征</em>。正确回答是：</p>
+<ul>
+<li><strong>『取决于读写比、行大小、查询复杂度、磁盘类型』</strong>。</li>
+<li>用 <code>r6id.32xlarge</code>（128 vCPU + 1TB RAM + NVMe）跑纯点查能到 30w+ QPS；同机器跑 5-table JOIN + GROUP BY 可能只有 2k QPS。差 150 倍。</li>
+</ul>
+<p><strong>10w QPS 谁先撑不住</strong>：</p>
+<ol>
+<li><strong>连接数</strong>：Postgres 每连接一个 OS 进程 + 10MB 内存，1000 连接就累。先撞这个——靠 PgBouncer 池化解决。</li>
+<li><strong>WAL（写日志）写入</strong>：纯写场景下 WAL flush 是瓶颈，10w writes/sec 接近 NVMe IOPS 上限。靠 batch commit + async commit 缓解。</li>
+<li><strong>锁竞争</strong>：热行（单个用户、单个产品）的更新会因 row lock 排队，QPS 跟单 row 的并发更新无关。靠 sharding 单热行（counters 拆 16 个）。</li>
+<li><strong>Vacuum / autovacuum</strong>：MVCC dead tuple 累积，autovacuum 一启动就抢 IO，p99 抖动严重。</li>
+<li><strong>Replication lag</strong>：异步复制下，主库写太快 replica 跟不上，read replica 变 stale，影响读路径正确性。</li>
+</ol>
+<p>面试时这样回答能立刻把对方拉到『真实工程』层面，胜过任何数字。</p>
+</div>
+</details>
+
+<details>
+<summary>4. 同样是『最终一致』，DynamoDB 默认 read 和 S3 早期的 list-after-write 都属于。但实际工程里两者表现差异巨大，为什么？</summary>
+<div class="answer">
+<p><strong>关键差异在于：『最终』有多远，以及读到旧数据时业务能否容忍。</strong></p>
+<ul>
+<li><strong>DynamoDB eventually consistent read</strong>：异步复制到 3 个 AZ 的延迟通常 &lt; 1 秒，绝大多数请求看到的是最新值。少数情况下读到几百 ms 前的旧值。业务上一般可接受（feed 慢 1s 没事），且 DDB 提供 <code>ConsistentRead=true</code> 给关键路径用（双倍成本）。</li>
+<li><strong>S3 list-after-write</strong>（2020 年之前）：put 一个新对象后立刻 list 可能<em>看不见</em>，且窗口长达几十秒。这种 negative case（『刚写的找不到』）比 stale read 难处理——业务往往会重试，导致重复写入；批处理依赖 list 来枚举工作单元就会丢任务。2020 年 12 月 AWS 把 S3 升级到 strong read-after-write + strong list consistency，就是因为这种 gap 实在太难用。</li>
+</ul>
+<p><strong>更普遍的判断</strong>：</p>
+<ul>
+<li>『缺值』比『旧值』难处理（读到 null 业务会去插入，造成重复）；</li>
+<li>读后写依赖（read-modify-write）会因 stale 读导致 lost update；</li>
+<li>多 key 查询的最终一致更可怕——你可能看到 A=v2 但 B 还是 v1，违反不变量。</li>
+</ul>
+<p>面试加分：能区分 <em>monotonic read</em>、<em>read-your-writes</em>、<em>causal</em> 等具体一致性模型（见 Day 6），而不是只说『eventual』。</p>
+</div>
+</details>
+
+<details>
+<summary>5. 一个产品现在用 Postgres，全表 5 亿行，BI 每天跑全表聚合，把生产库 p99 拖到 3 秒。你被叫去『救火』，列出 4 个量级不同的解法，从『5 分钟』到『3 个月』。</summary>
+<div class="answer">
+<ul>
+<li><strong>① 5 分钟级（止血）</strong>：把 BI 用户的 statement_timeout 设到 30s、把 BI 跑的 SQL 放到一个独立的 PG role，限制 max_connections=5。立刻不让 BI 把整个库拖死。<em>代价</em>：BI 报表跑不完，但生产 OLTP 救回来了。</li>
+<li><strong>② 1 天级（架构隔离）</strong>：BI 查询全部切到 read replica（physical replication）。生产 OLTP 完全不受影响。<em>代价</em>：replication lag（几秒-几分钟）下 BI 看到的不是最新数据；replica 自己有时被分析查询打挂，但不影响主库。这是大多数中型公司的常态方案。</li>
+<li><strong>③ 1 周级（CDC 到 OLAP）</strong>：用 Debezium 监听 Postgres logical replication，把数据流到 ClickHouse（或 BigQuery / Snowflake）。BI 完全脱离 PG。<em>代价</em>：多一套系统要维护、schema 变更要同步、最终一致（分钟级延迟）。但 BI 查询从 30s 降到 200ms。</li>
+<li><strong>④ 1-3 个月级（数据仓库 + Lakehouse）</strong>：搭建完整数仓 / lakehouse（Iceberg + Trino / Databricks），CDC + 定时 batch ETL 双轨；BI / 数据科学 / ML feature 全在数仓里跑；生产 PG 退守为纯 OLTP。这是大型公司的终态。<em>代价</em>：需要数据工程团队、$$$、metadata 治理是另一个大坑。</li>
+</ul>
+<p><em>关键启示</em>：『一个数据库解决所有问题』是初创期的便宜假设，规模上来必然分裂为 OLTP + OLAP + cache + search 等多套。面试中能讲清这条演进路径，比讨论某一种 DB 本身更体现 staff+ 水平。</p>
+</div>
+</details>
+
+<div class="nav"><a href="index.html">← 回到 index</a></div>
+</div></body></html>
