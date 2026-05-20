@@ -22,7 +22,8 @@ em{color:#5eead4;font-style:normal;font-weight:500}
 code{font-family:"SF Mono",Menlo,Consolas,monospace;background:rgba(100,200,255,0.1);color:#5eead4;padding:1px 6px;border-radius:3px;font-size:0.88em}
 pre{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.84rem;line-height:1.55;color:#c8cfd6}
 pre code{background:none;color:inherit;padding:0;font-size:1em}
-.ascii{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:16px;overflow-x:auto;margin:14px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.8rem;line-height:1.45;color:#5eead4;white-space:pre}
+.mermaid{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:18px;margin:14px 0;text-align:center;overflow-x:auto}
+.mermaid svg{max-width:100%;height:auto}
 .callout{background:rgba(255,180,80,0.06);border-left:3px solid #ffb450;padding:12px 14px;margin:14px 0;border-radius:4px;font-size:0.94rem}
 .callout strong{color:#ffb450}
 .tradeoff{background:rgba(100,200,255,0.05);border:1px solid rgba(100,200,255,0.2);border-radius:6px;padding:12px 14px;margin:12px 0;font-size:0.94rem}
@@ -34,8 +35,13 @@ pre code{background:none;color:inherit;padding:0;font-size:1em}
 table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.9rem}
 th,td{padding:8px 12px;text-align:left;border-bottom:1px solid rgba(100,200,255,0.15)}
 th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
-@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}.ascii,pre{font-size:0.72rem}}
-</style></head><body><div class="container">
+@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}pre{font-size:0.72rem}}
+</style>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{primaryColor:'#1a2530',primaryTextColor:'#e8eef5',primaryBorderColor:'#64c8ff',lineColor:'#5eead4',secondaryColor:'#0e1419',tertiaryColor:'#0a0f14',background:'#0a0f14',mainBkg:'#1a2530',secondBkg:'#0e1419',textColor:'#d4dae0',fontFamily:'-apple-system,"SF Pro Display",sans-serif',fontSize:'14px'}});
+</script>
+</head><body><div class="container">
 
 <header>
 <div class="meta">
@@ -63,30 +69,34 @@ th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
 </ul>
 
 <h2>高层架构（从 1 台到 N 层）</h2>
-<div class="ascii">
-                  ┌──────────────┐
-   Client ───────▶│   DNS (GeoDNS)│
-                  └──────┬───────┘
-                         ▼
-                  ┌──────────────┐
-                  │  L4 LB (LVS) │  ← 百万 QPS 入口
-                  └──────┬───────┘
-                         ▼
-              ┌────────────────────┐
-              │  L7 LB (Nginx/Envoy)│ ← 路由、TLS、限流
-              └──┬──────┬──────┬───┘
-                 ▼      ▼      ▼
-            ┌────────┬────────┬────────┐
-            │  App-1 │  App-2 │  App-N │ ← stateless、可任意扩缩
-            └───┬────┴───┬────┴───┬────┘
-                ▼        ▼        ▼
-        ┌──────────┐  ┌──────────────┐
-        │  Redis   │  │ PG Primary   │
-        │  Cluster │  │   │          │
-        └──────────┘  │   ├─ Replica1│ ← 读副本
-                      │   └─ Replica2│
-                      └──────────────┘
-</div>
+<pre class="mermaid">
+graph TD
+    C[Client]
+    DNS["DNS / GeoDNS"]
+    L4["L4 LB · LVS<br/><i>~1M QPS 入口</i>"]
+    L7["L7 LB · Nginx/Envoy<br/><i>路由 · TLS · 限流</i>"]
+    A1["App-1<br/><i>stateless</i>"]
+    A2["App-2<br/><i>stateless</i>"]
+    AN["App-N<br/><i>stateless</i>"]
+    R[("Redis<br/>Cluster")]
+    PG[("PG Primary")]
+    R1[("Replica-1<br/>读副本")]
+    R2[("Replica-2<br/>读副本")]
+
+    C --> DNS --> L4 --> L7
+    L7 --> A1 & A2 & AN
+    A1 & A2 & AN --> R
+    A1 & A2 & AN --> PG
+    PG -.复制.-> R1
+    PG -.复制.-> R2
+
+    classDef edge fill:#1a2530,stroke:#64c8ff,color:#e8eef5
+    classDef app fill:#0e2030,stroke:#5eead4,color:#e8eef5
+    classDef data fill:#1a1a30,stroke:#ffb450,color:#e8eef5
+    class C,DNS,L4,L7 edge
+    class A1,A2,AN app
+    class R,PG,R1,R2 data
+</pre>
 
 <h2>关键技术点</h2>
 

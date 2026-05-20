@@ -22,7 +22,8 @@ em{color:#5eead4;font-style:normal;font-weight:500}
 code{font-family:"SF Mono",Menlo,Consolas,monospace;background:rgba(100,200,255,0.1);color:#5eead4;padding:1px 6px;border-radius:3px;font-size:0.88em}
 pre{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.84rem;line-height:1.55;color:#c8cfd6}
 pre code{background:none;color:inherit;padding:0;font-size:1em}
-.ascii{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:16px;overflow-x:auto;margin:14px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.8rem;line-height:1.45;color:#5eead4;white-space:pre}
+.mermaid{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:18px;margin:14px 0;text-align:center;overflow-x:auto}
+.mermaid svg{max-width:100%;height:auto}
 .callout{background:rgba(255,180,80,0.06);border-left:3px solid #ffb450;padding:12px 14px;margin:14px 0;border-radius:4px;font-size:0.94rem}
 .callout strong{color:#ffb450}
 .tradeoff{background:rgba(100,200,255,0.05);border:1px solid rgba(100,200,255,0.2);border-radius:6px;padding:12px 14px;margin:12px 0;font-size:0.94rem}
@@ -34,8 +35,13 @@ pre code{background:none;color:inherit;padding:0;font-size:1em}
 table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.9rem}
 th,td{padding:8px 12px;text-align:left;border-bottom:1px solid rgba(100,200,255,0.15)}
 th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
-@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}.ascii,pre{font-size:0.72rem}}
-</style></head><body><div class="container">
+@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}pre{font-size:0.72rem}}
+</style>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:true,theme:'base',themeVariables:{primaryColor:'#1a2530',primaryTextColor:'#e8eef5',primaryBorderColor:'#64c8ff',lineColor:'#5eead4',secondaryColor:'#0e1419',tertiaryColor:'#0a0f14',background:'#0a0f14',mainBkg:'#1a2530',secondBkg:'#0e1419',textColor:'#d4dae0',fontFamily:'-apple-system,"SF Pro Display",sans-serif',fontSize:'14px'}});
+</script>
+</head><body><div class="container">
 
 <header>
 <div class="meta">
@@ -63,21 +69,29 @@ th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
 </ul>
 
 <h2>高层架构（多层缓存）</h2>
-<div class="ascii">
-  Client                                          Origin
-  ─────                                           ──────
-  ┌──────┐  ①   ┌──────┐  ②   ┌──────┐  ③   ┌──────────┐  ④   ┌────────┐
-  │Browser│────▶│ CDN  │────▶│Reverse│────▶│ App + L1 │────▶│   DB   │
-  │ cache │     │ Edge │     │ Proxy │     │  (in-proc)│     │ +缓冲池│
-  └──────┘     └──────┘     │+Varnish│     └────┬──────┘     └────────┘
-   localStorage             └───────┘           ▼
-   ServiceWorker                          ┌──────────────┐
-                                          │ Redis / MC L2│ ← 跨进程共享
-                                          └──────────────┘
+<pre class="mermaid">
+graph LR
+    B["Browser cache<br/><i>localStorage / SW</i>"]
+    CDN["CDN Edge<br/><i>Cloudflare / Akamai</i>"]
+    RP["Reverse Proxy<br/><i>Varnish / Nginx</i>"]
+    APP["App + L1<br/><i>in-proc · Caffeine</i>"]
+    L2["Redis / Memcached<br/><i>跨进程共享 L2</i>"]
+    DB[("DB + buffer pool")]
 
-  命中率从左到右递增，但每层 capacity 也递增；
-  数据返回时反向回填每一层（cache-aside），下一次请求短路。
-</div>
+    B -->|①| CDN -->|②| RP -->|③| APP -->|④| DB
+    APP <-.->|miss → 回填| L2
+    L2 -.miss.-> DB
+
+    classDef client fill:#1a2530,stroke:#64c8ff,color:#e8eef5
+    classDef edge fill:#0e2030,stroke:#5eead4,color:#e8eef5
+    classDef cache fill:#1a1a30,stroke:#ffb450,color:#e8eef5
+    classDef origin fill:#2a1530,stroke:#ff7ab6,color:#e8eef5
+    class B client
+    class CDN,RP edge
+    class APP,L2 cache
+    class DB origin
+</pre>
+<p style="font-size:0.88rem;color:#7a8590;text-align:center;margin-top:-6px">命中率从左到右递增；返回时反向回填每一层，下一次请求短路</p>
 
 <h2>关键技术点</h2>
 
@@ -146,14 +160,15 @@ class LRU:
 
 <h3>3. 写策略：Cache-aside vs Write-through vs Write-back</h3>
 <p><strong>原理</strong>：写数据时缓存和 DB 谁先谁后、谁负责，决定了一致性和复杂度。</p>
-<div class="ascii">
-Cache-aside (lazy load)         Write-through (同步)          Write-back (异步)
-─────────────────────           ──────────────────────         ──────────────────
-读: cache miss → DB → 回填       读: cache hit （永远）          读: cache hit
-写: 写 DB → 删 cache             写: 写 cache → 同步写 DB        写: 只写 cache → 异步刷 DB
-                                                              （宕机会丢数据！）
-最常见 (Redis + DB)             一致性强，写延迟高              性能极高，风险大
-</div>
+<table>
+<thead><tr><th></th><th>Cache-aside (lazy)</th><th>Write-through</th><th>Write-back</th></tr></thead>
+<tbody>
+<tr><td><strong>读</strong></td><td>miss → DB → 回填 cache</td><td>cache hit（永远）</td><td>cache hit</td></tr>
+<tr><td><strong>写</strong></td><td>写 DB → 删 cache</td><td>写 cache → 同步写 DB</td><td>只写 cache → 异步刷 DB</td></tr>
+<tr><td><strong>一致性</strong></td><td>有窗口（最终一致）</td><td>强（cache = DB）</td><td>弱（宕机丢未刷数据）</td></tr>
+<tr><td><strong>写延迟</strong></td><td>低（只写 DB）</td><td>高（两次写）</td><td>极低（只写内存）</td></tr>
+<tr><td><strong>适用</strong></td><td>Redis + DB 最常见</td><td>金融、强一致读</td><td>CPU cache、SSD FTL</td></tr>
+</tbody></table>
 <pre><code># Cache-aside 标准写法 (Python)
 def get_user(uid):
     user = redis.get(f"u:{uid}")
