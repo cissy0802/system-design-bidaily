@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 2 · 缓存 (Caching) — System Design Bi-daily</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"SF Pro Display","Noto Sans SC",sans-serif;background:#0e1419;color:#d4dae0;line-height:1.75}
+.container{max-width:820px;margin:0 auto;padding:24px 20px 60px}
+header{padding:40px 0 28px;border-bottom:1px solid rgba(100,200,255,0.15);margin-bottom:32px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;font-size:0.78rem}
+.tag{padding:3px 10px;border-radius:4px;background:rgba(100,200,255,0.12);color:#64c8ff;border:1px solid rgba(100,200,255,0.25)}
+.tag.diff{background:rgba(94,234,212,0.1);color:#5eead4;border-color:rgba(94,234,212,0.3)}
+.tag.day{background:rgba(255,180,80,0.1);color:#ffb450;border-color:rgba(255,180,80,0.25)}
+h1{font-size:1.75rem;font-weight:800;background:linear-gradient(135deg,#64c8ff 0%,#5eead4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px;line-height:1.3}
+h1 .en{display:block;font-size:1rem;color:#7a8590;-webkit-text-fill-color:#7a8590;margin-top:6px;font-weight:500}
+h2{font-size:1.2rem;color:#5eead4;margin:36px 0 14px;padding-left:12px;border-left:3px solid #5eead4}
+h3{font-size:1rem;color:#64c8ff;margin:20px 0 10px;font-weight:600}
+p{margin:10px 0;color:#c8cfd6}
+ul,ol{margin:10px 0 10px 22px;color:#c8cfd6}
+li{margin:6px 0}
+strong{color:#e8eef5;font-weight:600}
+em{color:#5eead4;font-style:normal;font-weight:500}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;background:rgba(100,200,255,0.1);color:#5eead4;padding:1px 6px;border-radius:3px;font-size:0.88em}
+pre{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.84rem;line-height:1.55;color:#c8cfd6}
+pre code{background:none;color:inherit;padding:0;font-size:1em}
+.ascii{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:16px;overflow-x:auto;margin:14px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.8rem;line-height:1.45;color:#5eead4;white-space:pre}
+.callout{background:rgba(255,180,80,0.06);border-left:3px solid #ffb450;padding:12px 14px;margin:14px 0;border-radius:4px;font-size:0.94rem}
+.callout strong{color:#ffb450}
+.tradeoff{background:rgba(100,200,255,0.05);border:1px solid rgba(100,200,255,0.2);border-radius:6px;padding:12px 14px;margin:12px 0;font-size:0.94rem}
+.case{background:rgba(94,234,212,0.05);border-left:3px solid #5eead4;padding:12px 14px;margin:12px 0;border-radius:4px;font-size:0.94rem}
+.case strong{color:#5eead4}
+.nav{margin-top:50px;padding-top:24px;border-top:1px solid rgba(100,200,255,0.15);text-align:center}
+.nav a{color:#64c8ff;text-decoration:none;font-size:0.92rem;padding:8px 16px;border:1px solid rgba(100,200,255,0.3);border-radius:4px;transition:all 0.15s}
+.nav a:hover{background:rgba(100,200,255,0.1)}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.9rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid rgba(100,200,255,0.15)}
+th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
+@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}.ascii,pre{font-size:0.72rem}}
+</style></head><body><div class="container">
+
+<header>
+<div class="meta">
+<span class="tag day">Day 2</span>
+<span class="tag diff">Medium</span>
+<span class="tag">Caching</span>
+<span class="tag">LRU/LFU/ARC</span>
+<span class="tag">Invalidation</span>
+</div>
+<h1>缓存 — 从浏览器到 DB 的多层穿透艺术<span class="en">Caching: Layers, Eviction Policies, Write Strategies, Invalidation</span></h1>
+</header>
+
+<h2>问题场景</h2>
+<p>用户访问首页 200ms 内必须返回，DB 查询一次需要 80ms，单查首页要 7 个查询——不缓存就是死。<strong>但缓存不是『加个 Redis』那么简单</strong>：Facebook 2010 年因为一次 Memcached 失效风暴丢了 2.5 小时全站可用性；Discord 2017 年发现消息列表的 LRU 在热点频道下表现糟糕，换 LFU 后命中率从 78% 提到 96%；GitHub 2020 年 PR 页面用 Russian Doll caching，命中率 99.3%。</p>
+<p>本期讲三件事：<em>缓存放在哪一层、怎么淘汰、怎么写</em>。最关键的是『缓存失效』，被 Phil Karlton 称为计算机科学两大难题之一（另一个是命名）。</p>
+
+<h2>需求与约束（面试必问）</h2>
+<ul>
+<li><strong>读写比</strong>：100:1 适合 cache，1:1 写多读少基本没收益（缓存命中率太低）。</li>
+<li><strong>数据热度分布</strong>：是否 80/20 Pareto？长尾分布缓存效果差，热点严重则单 key 风暴。</li>
+<li><strong>容忍 stale 多久</strong>：用户头像 1 小时旧没事；账户余额 1 秒旧也是事故。</li>
+<li><strong>对象大小</strong>：1KB 还是 1MB？Memcached 默认 slab 上限 1MB，超过要切片或换 Redis。</li>
+<li><strong>命中率目标</strong>：&lt; 80% 通常意味着缓存层没价值；&gt; 95% 才能真正卸载后端。</li>
+<li><strong>失效策略</strong>：TTL、显式 invalidate、还是 write-through？</li>
+</ul>
+
+<h2>高层架构（多层缓存）</h2>
+<div class="ascii">
+  Client                                          Origin
+  ─────                                           ──────
+  ┌──────┐  ①   ┌──────┐  ②   ┌──────┐  ③   ┌──────────┐  ④   ┌────────┐
+  │Browser│────▶│ CDN  │────▶│Reverse│────▶│ App + L1 │────▶│   DB   │
+  │ cache │     │ Edge │     │ Proxy │     │  (in-proc)│     │ +缓冲池│
+  └──────┘     └──────┘     │+Varnish│     └────┬──────┘     └────────┘
+   localStorage             └───────┘           ▼
+   ServiceWorker                          ┌──────────────┐
+                                          │ Redis / MC L2│ ← 跨进程共享
+                                          └──────────────┘
+
+  命中率从左到右递增，但每层 capacity 也递增；
+  数据返回时反向回填每一层（cache-aside），下一次请求短路。
+</div>
+
+<h2>关键技术点</h2>
+
+<h3>1. 缓存层次：Browser / CDN / App / DB Buffer Pool</h3>
+<p><strong>原理</strong>：每一层缓存解决不同的延迟问题。<em>Browser cache</em> 省网络（0ms vs 50ms）；<em>CDN</em> 把静态资产放到用户 50 公里以内的 PoP，p50 延迟 10ms；<em>app 进程内 cache</em>（Guava / Caffeine / Python <code>functools.lru_cache</code>）省 Redis 一次 RTT（0.1ms vs 1ms）；<em>Redis</em> 跨进程共享，命中后省 DB 查询（1ms vs 50ms）；<em>DB buffer pool</em>（Postgres shared_buffers, InnoDB buffer pool）省磁盘 IO。</p>
+<div class="tradeoff">
+<strong>Trade-off：</strong>
+<ul>
+<li><strong>进程内 cache</strong>：✅ 0.1ms 级延迟、无网络故障；❌ N 个进程 N 份副本（内存浪费）、失效要广播（很难做对）。</li>
+<li><strong>分布式 cache (Redis)</strong>：✅ 一致视图、好失效；❌ 多一次 RTT、Redis 本身要扩容/HA。</li>
+<li><strong>CDN</strong>：✅ 全球分布、抗 DDoS；❌ 只能缓存可公共复用的内容，失效慢（Cloudflare 全球 purge ~30s）。</li>
+</ul></div>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Facebook</strong>：TAO（in-memory graph cache）+ Memcached 海洋（数万台），命中率 &gt; 99%，每秒处理 10 亿+ 次读。论文《Scaling Memcache at Facebook》是必读。</li>
+<li><strong>Twitter</strong>：用户的 timeline 整页用 Redis cache，热门用户被 fanout 预生成。</li>
+<li><strong>GitHub Rails</strong>：用 Russian Doll caching（嵌套片段缓存），PR 详情页命中率 99.3%。</li>
+<li><strong>Stack Overflow</strong>：单数据中心 9 台服务器扛全球访问，靠 5 层缓存（HTTP / Redis / SQL Server buffer / .NET CLR / 客户端）。</li>
+</ul></div>
+
+<h3>2. 淘汰策略：LRU vs LFU vs ARC vs TinyLFU</h3>
+<p><strong>原理</strong>：缓存容量有限，必须选一个『谁先死』规则。</p>
+<table>
+<thead><tr><th>策略</th><th>淘汰对象</th><th>适合场景</th><th>命中率</th></tr></thead>
+<tbody>
+<tr><td><strong>LRU</strong></td><td>最久未访问的</td><td>时间局部性强（最近访问 = 即将再访问）</td><td>中</td></tr>
+<tr><td><strong>LFU</strong></td><td>访问次数最少的</td><td>频率局部性强、热点稳定</td><td>高（稳态）</td></tr>
+<tr><td><strong>ARC</strong></td><td>自适应 LRU+LFU</td><td>访问模式变化、不想调参</td><td>高</td></tr>
+<tr><td><strong>W-TinyLFU</strong></td><td>带准入控制的 LFU</td><td>有突发流量、扫描型访问</td><td>极高</td></tr>
+<tr><td><strong>FIFO/Random</strong></td><td>先进/随机</td><td>O(1) 极简、纯 streaming</td><td>低</td></tr>
+</tbody></table>
+<div class="tradeoff">
+<strong>Trade-off：</strong>
+<ul>
+<li><strong>LRU</strong>：✅ 实现简单（哈希表 + 双向链表 = O(1)）；❌ 被一次性扫描污染（『扫描抗性差』），如有人爬全站。</li>
+<li><strong>LFU</strong>：✅ 抗扫描；❌ 老数据『沉淀』下来，新热点进不来（需要 aging / 衰减计数）。</li>
+<li><strong>ARC</strong>：✅ 自适应；❌ IBM 专利（Linux 因此用 2Q 替代）、实现复杂。</li>
+<li><strong>W-TinyLFU</strong>（Caffeine 用）：✅ 用 Count-Min Sketch 估频率，准入控制让稀有 key 进不来污染；❌ 概率结构有误差。</li>
+</ul></div>
+<pre><code># Python LRU 极简实现 (用 OrderedDict)
+from collections import OrderedDict
+class LRU:
+    def __init__(self, cap): self.cap, self.d = cap, OrderedDict()
+    def get(self, k):
+        if k not in self.d: return None
+        self.d.move_to_end(k)        # 最近访问 → 末尾
+        return self.d[k]
+    def put(self, k, v):
+        if k in self.d: self.d.move_to_end(k)
+        self.d[k] = v
+        if len(self.d) > self.cap:
+            self.d.popitem(last=False)  # 淘汰头部（最久未访问）
+
+# Redis 实际用『近似 LRU』：每次淘汰从 5 个随机 key 中挑最久的
+# maxmemory-policy allkeys-lru / allkeys-lfu / volatile-ttl
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Redis</strong>：默认 <code>allkeys-lru</code>，但实现是<em>近似</em> LRU（采样 5-10 个 key 比较，节省维护链表的开销）。Redis 4.0+ 支持 LFU。</li>
+<li><strong>Caffeine (Java)</strong>：用 W-TinyLFU，被 Cassandra、HBase、Kafka Streams 默认采用，命中率比 LRU 高 5-15%。</li>
+<li><strong>Linux Page Cache</strong>：用 2Q（active/inactive 双链表），近似 LRU 但抗扫描污染。</li>
+<li><strong>Discord</strong>：消息缓存早期用 LRU，热门频道下『最近未访问』误判严重，切到 LFU 后命中率 78% → 96%。</li>
+</ul></div>
+
+<h3>3. 写策略：Cache-aside vs Write-through vs Write-back</h3>
+<p><strong>原理</strong>：写数据时缓存和 DB 谁先谁后、谁负责，决定了一致性和复杂度。</p>
+<div class="ascii">
+Cache-aside (lazy load)         Write-through (同步)          Write-back (异步)
+─────────────────────           ──────────────────────         ──────────────────
+读: cache miss → DB → 回填       读: cache hit （永远）          读: cache hit
+写: 写 DB → 删 cache             写: 写 cache → 同步写 DB        写: 只写 cache → 异步刷 DB
+                                                              （宕机会丢数据！）
+最常见 (Redis + DB)             一致性强，写延迟高              性能极高，风险大
+</div>
+<pre><code># Cache-aside 标准写法 (Python)
+def get_user(uid):
+    user = redis.get(f"u:{uid}")
+    if user: return json.loads(user)
+    user = db.query("SELECT * FROM users WHERE id=%s", uid)
+    redis.setex(f"u:{uid}", 3600, json.dumps(user))  # TTL 兜底
+    return user
+
+def update_user(uid, data):
+    db.update("UPDATE users SET ... WHERE id=%s", uid, data)
+    redis.delete(f"u:{uid}")   # ⚠️ 删而不是更新，避免并发写错乱
+    # ⚠️ 还要小心: 删之后立刻有人读, 可能再次回填旧值 → 双删 / 延迟双删
+</code></pre>
+<div class="tradeoff">
+<strong>Trade-off：</strong>
+<ul>
+<li><strong>Cache-aside</strong>：✅ 简单、cache 挂了不影响写；❌ 第一次 miss 慢、需手动 invalidate（容易写错）。</li>
+<li><strong>Write-through</strong>：✅ cache 永远是真相；❌ 每次写都贵；cache 挂了写不进去。</li>
+<li><strong>Write-back</strong>：✅ 最快；❌ cache 宕机 = 丢数据，账户余额绝不能用。但 CPU L1/L2 cache、SSD FTL 都用这个。</li>
+</ul></div>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Instagram</strong>：feed 用 cache-aside + Redis，写帖子后删相关 cache key。</li>
+<li><strong>LinkedIn</strong>：消息中心用 write-through 到 Voldemort（自家 KV），保证读总是最新。</li>
+<li><strong>MySQL InnoDB</strong>：buffer pool 是 write-back，靠 redo log + checkpoint 保证持久化。</li>
+<li><strong>Apple iCloud Photos</strong>：缩略图用 write-through 到 S3，保证 CDN 拉取永远有效。</li>
+</ul></div>
+
+<h3>4. 失效难题：TTL、惊群、雪崩、穿透</h3>
+<p><strong>原理</strong>：四个经典坑，每个都在生产环境炸过。</p>
+<ul>
+<li><strong>Thundering herd（缓存击穿）</strong>：一个热 key 过期瞬间，1 万个请求同时穿到 DB。<em>解法</em>：互斥锁（single-flight）、逻辑过期（永不真过期，后台异步刷）、提前续约。</li>
+<li><strong>Cache avalanche（雪崩）</strong>：大批 key 同一时刻过期，DB 突然被打爆。<em>解法</em>：TTL 加随机抖动（<code>3600 + random(0, 300)</code>）。</li>
+<li><strong>Cache penetration（穿透）</strong>：查询不存在的 key，每次都回源。<em>解法</em>：缓存空值（短 TTL）、Bloom Filter 前置判断。</li>
+<li><strong>Stale-while-revalidate</strong>：返回旧值同时后台刷新（CDN / HTTP / Next.js ISR 都用），延迟 0、最终一致。</li>
+</ul>
+<pre><code># Single-flight 防击穿 (Go)
+var g singleflight.Group
+func GetHot(key string) (any, error) {
+    v, err, _ := g.Do(key, func() (any, error) {
+        if v := redis.Get(key); v != nil { return v, nil }
+        v := db.Query(key)
+        redis.SetEX(key, v, ttlWithJitter(3600))
+        return v, nil
+    })
+    return v, err
+}
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Facebook Memcached lease</strong>：miss 时只发一个 lease token 给一个客户端去回源，其他人等待。论文中详述。</li>
+<li><strong>Cloudflare</strong>：用 stale-while-revalidate，过期内容继续返回 60s 同时后台拉新，p99 几乎无毛刺。</li>
+<li><strong>Pinterest</strong>：曾因 Memcached 全集群同 TTL 雪崩挂掉 30 分钟，事后加 jitter 修复。</li>
+<li><strong>Vercel ISR</strong>：Next.js Incremental Static Regeneration 就是 stale-while-revalidate 的产品化。</li>
+</ul></div>
+
+<h2>扩展与优化（增长后怎么办）</h2>
+<ul>
+<li><strong>命中率上不去</strong>：分析访问分布。如果是长尾，考虑预热（pre-warming）或更大容量；如果是热点，分片到多 key（<code>user:123:part:{0..15}</code>）。</li>
+<li><strong>Redis 单实例顶不住</strong>：上 Redis Cluster（16384 slot）或 Twemproxy / Codis 中间层；写热点要 consistent hashing。</li>
+<li><strong>跨区延迟</strong>：每区独立 Redis 集群，DB 写后异步广播 invalidation（Facebook 用 mcsqueal）。</li>
+<li><strong>对象太大</strong>：换 Redis（支持 512MB / value）或切片；考虑只缓存 ID 列表，详情仍走 DB（节省内存）。</li>
+<li><strong>瓶颈识别</strong>：监控『命中率』『p99 延迟』『回源 QPS』，命中率下跌往往是新功能没缓存或 invalidation bug。</li>
+</ul>
+
+<h2>常见陷阱（资深工程师也常翻车）</h2>
+<div class="callout">
+<strong>1. 更新缓存还是删除缓存？</strong> 答案永远是<em>删除</em>。更新会让两个并发写产生乱序（A 写值 v1 → B 写值 v2 → B 更新 cache → A 更新 cache，cache 永远停在 v1）。
+</div>
+<div class="callout">
+<strong>2. 先写 DB 还是先删 cache？</strong> 标准是『先 DB 后删 cache』。先删 cache 的话，删完到 DB 写完之间有窗口，别人读会回填旧值。极端情况用『延迟双删』：删 → 写 DB → sleep 500ms → 再删一次。
+</div>
+<div class="callout">
+<strong>3. 缓存 vs 数据库的最终一致窗口</strong>：永远不可能 0。承认这一点，给业务定『stale 容忍度』。
+</div>
+<div class="callout">
+<strong>4. 把 Redis 当 DB 用</strong>：Redis 持久化（RDB / AOF）不是设计目标，宕机 RPO 至少几秒。账户余额这种数据，Redis 是 cache 不是 source of truth。
+</div>
+<div class="callout">
+<strong>5. 忽略冷启动</strong>：服务重启或 cache cluster 替换瞬间，命中率 0%，DB 直接被打爆。要预热或慢启动放量。
+</div>
+
+<h2>面试问题示例</h2>
+<ol>
+<li>设计 Instagram 首页 feed 缓存，用户量 10 亿，p99 &lt; 200ms。</li>
+<li>Redis 一个 hot key（如顶流明星的粉丝列表）QPS 100w，怎么扛？</li>
+<li>缓存一致性怎么做？说说『先写 DB 还是先删 cache』各自的失败场景。</li>
+<li>LRU 和 LFU 的实现细节，时间复杂度，分别什么场景下选哪个？</li>
+<li>Cache penetration（恶意查不存在的 key）怎么防？Bloom Filter 的误判率怎么算？</li>
+</ol>
+
+<h2>关键资源</h2>
+<ul>
+<li><strong>《Designing Data-Intensive Applications》Ch 1 + Ch 5</strong>（Kleppmann）：缓存与一致性的本质讨论。</li>
+<li><strong>《Scaling Memcache at Facebook》</strong>（NSDI 2013）：分布式缓存的圣经，lease、gutter pool、跨区复制都在里面。</li>
+<li><strong>Caffeine wiki</strong>：W-TinyLFU 设计细节，作者 Ben Manes 的 Benchmark 数据非常硬核。</li>
+</ul>
+
+<h2>English Summary</h2>
+<p>Caching is a multi-layer art spanning browser, CDN, reverse proxy, in-process, distributed (Redis/Memcached), and DB buffer pools. Choose eviction policy by access pattern: LRU for recency, LFU for frequency, W-TinyLFU (Caffeine) when in doubt. Write strategies trade consistency for performance: cache-aside is the default, write-through ensures correctness, write-back maximizes throughput at the cost of durability. The hardest part is invalidation — beware thundering herd, avalanche (use TTL jitter), penetration (bloom filter), and the eternal question of <em>delete</em> vs <em>update</em> cache (always delete).</p>
+
+<h2>动手作业（30 分钟）</h2>
+<p>设计 Twitter『查看某用户最近 20 条推文』的缓存方案：</p>
+<ol>
+<li>画出 cache 结构（key 设计、TTL、对象大小估算）。</li>
+<li>用户发新推文时怎么 invalidate？</li>
+<li>遇到顶流（1 亿粉丝同一秒查）怎么避免 hot key？</li>
+<li>用户删推文时，缓存一致性怎么保证？</li>
+</ol>
+
+<div class="nav"><a href="index.html">← 回到 index</a></div>
+</div></body></html>
