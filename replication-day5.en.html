@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 5 · Replication — System Design Bi-daily</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"SF Pro Display","Noto Sans SC",sans-serif;background:#0e1419;color:#d4dae0;line-height:1.75}
+.container{max-width:820px;margin:0 auto;padding:24px 20px 60px}
+header{padding:40px 0 28px;border-bottom:1px solid rgba(100,200,255,0.15);margin-bottom:32px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;font-size:0.78rem}
+.tag{padding:3px 10px;border-radius:4px;background:rgba(100,200,255,0.12);color:#64c8ff;border:1px solid rgba(100,200,255,0.25)}
+.tag.diff{background:rgba(94,234,212,0.1);color:#5eead4;border-color:rgba(94,234,212,0.3)}
+.tag.day{background:rgba(255,180,80,0.1);color:#ffb450;border-color:rgba(255,180,80,0.25)}
+h1{font-size:1.75rem;font-weight:800;background:linear-gradient(135deg,#64c8ff 0%,#5eead4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px;line-height:1.3}
+h1 .en{display:block;font-size:1rem;color:#7a8590;-webkit-text-fill-color:#7a8590;margin-top:6px;font-weight:500}
+h2{font-size:1.2rem;color:#5eead4;margin:36px 0 14px;padding-left:12px;border-left:3px solid #5eead4}
+h3{font-size:1rem;color:#64c8ff;margin:20px 0 10px;font-weight:600}
+p{margin:10px 0;color:#c8cfd6}
+ul,ol{margin:10px 0 10px 22px;color:#c8cfd6}
+li{margin:6px 0}
+strong{color:#e8eef5;font-weight:600}
+em{color:#5eead4;font-style:normal;font-weight:500}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;background:rgba(100,200,255,0.1);color:#5eead4;padding:1px 6px;border-radius:3px;font-size:0.88em}
+pre{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.84rem;line-height:1.55;color:#c8cfd6}
+pre code{background:none;color:inherit;padding:0;font-size:1em}
+.mermaid{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:18px;margin:14px 0;text-align:center;overflow-x:auto;cursor:zoom-in;transition:border-color 0.15s}
+.mermaid:hover{border-color:rgba(100,200,255,0.4)}
+.mermaid svg{width:100%;max-width:100%;height:auto;min-height:280px}
+.lightbox{position:fixed;inset:0;background:rgba(8,12,18,0.96);z-index:9999;display:none;align-items:center;justify-content:center;padding:24px;cursor:grab;backdrop-filter:blur(4px);overflow:hidden}
+.lightbox.open{display:flex}
+.lightbox.dragging{cursor:grabbing}
+.lightbox svg{width:auto;height:auto;max-width:96vw;max-height:92vh;transform-origin:center center;will-change:transform}
+.lightbox .hint{position:fixed;top:16px;right:20px;font-size:0.78rem;color:#7a8590;font-family:"SF Mono",Menlo,monospace;pointer-events:none}
+.callout{background:rgba(255,180,80,0.06);border-left:3px solid #ffb450;padding:12px 14px;margin:14px 0;border-radius:4px;font-size:0.94rem}
+.callout strong{color:#ffb450}
+.tradeoff{background:rgba(100,200,255,0.05);border:1px solid rgba(100,200,255,0.2);border-radius:6px;padding:12px 14px;margin:12px 0;font-size:0.94rem}
+.case{background:rgba(94,234,212,0.05);border-left:3px solid #5eead4;padding:12px 14px;margin:12px 0;border-radius:4px;font-size:0.94rem}
+.case strong{color:#5eead4}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.9rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid rgba(100,200,255,0.15)}
+th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
+details{background:rgba(100,200,255,0.04);border:1px solid rgba(100,200,255,0.18);border-radius:6px;padding:12px 16px;margin:10px 0;transition:all 0.15s}
+details:hover{border-color:rgba(100,200,255,0.35)}
+details[open]{background:rgba(94,234,212,0.05);border-color:rgba(94,234,212,0.3)}
+details summary{font-weight:600;color:#e8eef5;list-style:none;outline:none;cursor:pointer;display:flex;align-items:flex-start;gap:10px;font-size:0.96rem}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:'▶';color:#64c8ff;font-size:0.75em;transition:transform 0.2s;flex-shrink:0;margin-top:5px}
+details[open] summary::before{transform:rotate(90deg);color:#5eead4}
+details .answer{margin-top:12px;padding-top:12px;border-top:1px dashed rgba(100,200,255,0.18);color:#c8cfd6;font-size:0.93rem;line-height:1.7}
+details .answer ul,details .answer ol{margin:6px 0 6px 22px}
+@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}pre{font-size:0.72rem}}
+</style>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:true,theme:'base',flowchart:{useMaxWidth:true,htmlLabels:true,nodeSpacing:50,rankSpacing:60},themeVariables:{primaryColor:'#1a2530',primaryTextColor:'#e8eef5',primaryBorderColor:'#64c8ff',lineColor:'#5eead4',secondaryColor:'#0e1419',tertiaryColor:'#0a0f14',background:'#0a0f14',mainBkg:'#1a2530',secondBkg:'#0e1419',textColor:'#d4dae0',fontFamily:'-apple-system,"SF Pro Display",sans-serif',fontSize:'16px'}});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const lb=document.createElement('div');lb.className='lightbox';
+  lb.innerHTML='<span class="hint">scroll = zoom · drag = pan · Esc / click bg = close</span>';
+  document.body.appendChild(lb);
+  let scale=1,panX=0,panY=0,dragging=false,moved=false,lx=0,ly=0;
+  const apply=()=>{const s=lb.querySelector('svg');if(s)s.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`};
+  const reset=()=>{scale=1;panX=0;panY=0};
+  const close=()=>{lb.classList.remove('open');const s=lb.querySelector('svg');if(s)s.remove();reset()};
+  document.addEventListener('click',e=>{
+    if(e.target.closest('.lightbox')){if(moved){moved=false;return}close();return}
+    const w=e.target.closest('.mermaid');if(!w)return;
+    const svg=w.querySelector('svg');if(!svg)return;
+    const c=svg.cloneNode(true);c.removeAttribute('style');
+    c.style.maxWidth='96vw';c.style.maxHeight='92vh';
+    lb.appendChild(c);lb.classList.add('open');reset();apply();
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  lb.addEventListener('wheel',e=>{
+    if(!lb.classList.contains('open'))return;
+    e.preventDefault();
+    const svg=lb.querySelector('svg');if(!svg)return;
+    const ns=Math.max(0.3,Math.min(10,scale*(1-e.deltaY*0.002)));
+    const r=svg.getBoundingClientRect();
+    const cx=e.clientX-(r.left+r.width/2),cy=e.clientY-(r.top+r.height/2);
+    const k=ns/scale-1;panX-=cx*k;panY-=cy*k;scale=ns;apply();
+  },{passive:false});
+  lb.addEventListener('mousedown',e=>{
+    if(!lb.classList.contains('open'))return;
+    dragging=true;moved=false;lx=e.clientX;ly=e.clientY;lb.classList.add('dragging');e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const dx=e.clientX-lx,dy=e.clientY-ly;
+    if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
+    panX+=dx;panY+=dy;lx=e.clientX;ly=e.clientY;apply();
+  });
+  document.addEventListener('mouseup',()=>{dragging=false;lb.classList.remove('dragging')});
+});
+</script>
+</head><body><div class="container">
+
+<header>
+<div class="meta">
+<span class="tag day">Day 5</span>
+<span class="tag diff">Hard</span>
+<span class="tag">Database</span>
+<span class="tag">Replication</span>
+<span class="tag">Consistency</span>
+<span class="tag">Failover</span>
+</div>
+<h1>Replication — You Think It's for Read Scaling, It's Actually for That One Failure<span class="en">Leader-Follower vs Multi-leader vs Leaderless, Sync vs Async, Replication Lag, Failover</span></h1>
+</header>
+
+<h2>Problem & Constraints</h2>
+<p>Design a cross-continental collaborative document platform (think Notion / Linear / GitHub). Read/write ratio <strong>100:1</strong>, writes <strong>~5k QPS</strong>, reads <strong>~500k QPS</strong>, users in EU, US, and APAC. European users need read P99 &lt; 50 ms. Plus:</p>
+<ul>
+<li><strong>RPO (max data loss) ≤ 1 second</strong>: if an entire region goes down, lose at most 1s of writes.</li>
+<li><strong>RTO (recovery time) ≤ 60 seconds</strong>: leader dies, automatic failover must restore writes within a minute.</li>
+<li><strong>Read-your-writes</strong>: user edits a doc, hits refresh, must see their own change.</li>
+<li><strong>Monotonic reads</strong>: two consecutive refreshes can't go back in time (a comment can't disappear and reappear).</li>
+</ul>
+<p>These constraints sound mild but combined they kill the "just add a read replica" approach. Replication is one of those rare domains where <em>any non-complex design simply does not work</em>: a single machine can't scale, primary-follower has lag, cross-region has the speed of light, and failover has split-brain risk. <em>Replication is fundamentally insurance against failure; read scaling is a side effect</em>.</p>
+
+<h2>High-Level Architecture</h2>
+<pre class="mermaid">
+graph TD
+    subgraph US["us-east (Primary Region)"]
+        APP_US["App us-east"]
+        L["Leader (Primary)<br/><i>all writes, strong read in-region</i>"]
+        F1[("Sync Replica<br/><i>same AZ, semi-sync</i>")]
+        F2[("Async Replica<br/><i>cross-AZ</i>")]
+    end
+    subgraph EU["eu-west"]
+        APP_EU["App eu-west"]
+        R_EU[("Read Replica<br/><i>async, lag 100-500ms</i>")]
+    end
+    subgraph AP["ap-south"]
+        APP_AP["App ap-south"]
+        R_AP[("Read Replica<br/><i>async, lag 200-800ms</i>")]
+    end
+
+    CONSUL["Orchestrator + Consul<br/><i>health check / failover</i>"]
+
+    APP_US -- write --> L
+    APP_US -- read --> L
+    L == sync ==> F1
+    L -. async .-> F2
+    L -. async (WAN) .-> R_EU
+    L -. async (WAN) .-> R_AP
+    APP_EU -- read --> R_EU
+    APP_AP -- read --> R_AP
+    APP_EU -- write --> L
+    APP_AP -- write --> L
+    CONSUL -. monitor .-> L
+    CONSUL -. monitor .-> F1
+
+    classDef leader fill:#2a1530,stroke:#ff7ab6,color:#e8eef5
+    classDef sync fill:#1a2530,stroke:#64c8ff,color:#e8eef5
+    classDef async fill:#0e2030,stroke:#5eead4,color:#e8eef5
+    classDef ctl fill:#1a1a30,stroke:#ffb450,color:#e8eef5
+    class L leader
+    class F1 sync
+    class F2,R_EU,R_AP async
+    class CONSUL ctl
+</pre>
+<p style="font-size:0.88rem;color:#7a8590;text-align:center;margin-top:-6px">Single leader for writes + same-AZ semi-sync replica (RPO) + cross-AZ async (read capacity) + cross-region async (local reads). Orchestrator handles health checks and automatic failover.</p>
+
+<h2>Key Technical Points</h2>
+
+<h3>1. Topology: Leader-Follower vs Multi-leader vs Leaderless</h3>
+<p><strong>Principle</strong>: replication topology decides where writes go and who arbitrates conflicts. Three basic modes:</p>
+<ul>
+<li><strong>Leader-Follower (single primary)</strong>: all writes go through the leader; followers replicate the WAL async or sync. <em>No write conflicts</em>; failover is the hard part.</li>
+<li><strong>Multi-leader</strong>: each region accepts writes locally and replicates to peers. <em>Needs conflict resolution</em> (same key changed in two regions).</li>
+<li><strong>Leaderless</strong>: client writes to multiple replicas directly; quorum (W+R&gt;N) guarantees reads see latest. <em>No leader role</em>, no failover, but reads are amplified.</li>
+</ul>
+<table>
+<thead><tr><th></th><th>Leader-Follower</th><th>Multi-leader</th><th>Leaderless (Dynamo)</th></tr></thead>
+<tbody>
+<tr><td><strong>Write path</strong></td><td>must hit leader</td><td>local leader</td><td>client writes N replicas</td></tr>
+<tr><td><strong>Conflicts</strong></td><td>none</td><td>yes — CRDT / LWW / app-level</td><td>yes, in sloppy quorum</td></tr>
+<tr><td><strong>Cross-region write latency</strong></td><td>bad (150ms RTT)</td><td>good (local)</td><td>good (local)</td></tr>
+<tr><td><strong>Read consistency</strong></td><td>strong (leader) or eventual (follower)</td><td>eventual</td><td>tunable (R+W&gt;N → strong)</td></tr>
+<tr><td><strong>Failover</strong></td><td>hard (split-brain risk)</td><td>easy (other leaders take over)</td><td>non-existent</td></tr>
+<tr><td><strong>Examples</strong></td><td>Postgres, MySQL, MongoDB, Redis</td><td>BDR Postgres, MySQL Group Repl, CouchDB</td><td>Cassandra, DynamoDB, Riak, ScyllaDB</td></tr>
+</tbody></table>
+<div class="tradeoff">
+<strong>How to choose:</strong>
+<ul>
+<li><strong>OLTP, single region or weak cross-region requirement</strong> → Leader-Follower. The correct answer 99% of the time.</li>
+<li><strong>Truly need low-latency cross-region writes</strong> (social likes, geo-distributed collaboration) → Multi-leader or Leaderless. Accept conflict complexity.</li>
+<li><strong>Extreme availability, eventual consistency OK</strong> (shopping cart, like counter) → Leaderless + CRDT.</li>
+<li><em>Anti-pattern</em>: using multi-leader like leader-follower — "they're all primary, just write local." Result: two regions concurrently mutating the same row, only one survives, and it's unpredictable.</li>
+</ul></div>
+<pre><code># The classic LWW (Last-Writer-Wins) trap in multi-leader
+# Region A: user.email = "alice@old.com"  at t=100
+# Region B: user.email = "alice@new.com"  at t=101 (clock skew +50ms, actually 51)
+# After replication both sides take max(timestamp) → "alice@new.com" ✓ looks fine
+
+# But:
+# Region A: balance -= 100  (debit)   at t=200
+# Region B: balance -= 200  (debit)   at t=200 (concurrent)
+# LWW keeps ONLY one debit! The other is silently lost.
+# → Numeric / set types MUST use CRDT (g-counter / OR-set) or explicit merge,
+#   not LWW.
+</code></pre>
+<div class="case">
+<strong>Real-world cases:</strong>
+<ul>
+<li><strong>GitHub</strong>: MySQL single primary + Orchestrator failover; the 2018 24h outage was cross-region failover with data divergence (see point 4).</li>
+<li><strong>Cassandra / DynamoDB</strong>: leaderless with tunable consistency; Discord stores messages in Cassandra with QUORUM reads/writes balancing latency vs consistency.</li>
+<li><strong>Riak / Amazon shopping cart</strong>: the classic multi-master + CRDT — during partitions both sides add items, merge takes union (prefer over-counting to losing).</li>
+<li><strong>Apple iCloud Notes / Figma</strong>: client-server is fundamentally multi-leader; OT/CRDT resolves concurrent edits.</li>
+</ul></div>
+
+<h3>2. Sync vs Async vs Semi-sync: the consistency-latency-availability triangle</h3>
+<p><strong>Principle</strong>: when does the leader ACK the client after a write? Depends on whether replication is sync or async.</p>
+<ul>
+<li><strong>Sync</strong>: wait for all replicas to write before ACK. <em>Zero data loss</em>, but one slow replica = whole cluster slow; one dead replica = cluster can't write.</li>
+<li><strong>Async</strong>: leader ACKs immediately, replicas catch up later. <em>Lowest latency</em>, but writes not yet replicated are lost if leader dies.</li>
+<li><strong>Semi-sync</strong>: wait for <em>at least one</em> replica ACK. The compromise — default for most production systems.</li>
+</ul>
+<pre class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant L as Leader
+    participant S as Sync Replica
+    participant A as Async Replica
+
+    Note over C,A: Semi-sync (Postgres synchronous_commit=on, 1 replica)
+    C->>L: write x=1
+    L->>L: WAL fsync
+    L->>S: stream WAL
+    L->>A: stream WAL
+    S-->>L: ACK (durable)
+    L-->>C: OK (now 2 copies)
+    A-->>L: ACK (later, lagged)
+
+    Note over C,A: If S stalls past timeout, degrades to async (availability > consistency)
+</pre>
+<div class="tradeoff">
+<strong>Boundaries of the three semantics:</strong>
+<ul>
+<li><strong>Pure Sync (all N replicas ACK)</strong>: essentially Paxos/Raft majority. Production rarely uses "all ACK" — one slow replica is a tail-latency killer.</li>
+<li><strong>Semi-sync (Postgres / MySQL)</strong>: "at least K replicas"; K=1 is most common, K=2 for cross-AZ multi-active. <em>Key trap</em>: when ALL sync replicas are unresponsive, Postgres blocks writes indefinitely — it does NOT degrade to async. MySQL defaults to a 10s timeout and silently downgrades (<code>rpl_semi_sync_master_timeout</code>), risking silent data loss.</li>
+<li><strong>Async</strong>: low latency; cross-region read replicas almost always use async (sync across an ocean = 100+ ms latency tax per write).</li>
+<li><strong>Quorum (Raft auto-majority)</strong>: W=(N/2)+1; with N=3, W=2 — picks the 2 fastest replicas. Fast AND doesn't stall. etcd, CockroachDB, TiKV, Spanner all use this.</li>
+</ul></div>
+<pre><code># Postgres semi-sync config (example)
+# postgresql.conf
+synchronous_commit = on
+synchronous_standby_names = 'ANY 1 (replica1, replica2, replica3)'
+# Meaning: ACK once any 1 replica has fsync'd
+# 'FIRST 2 (...)' = requires 2 replicas in declared order
+
+# ⚠️ synchronous_commit=remote_apply does one more thing than 'on':
+# wait until replica has applied the change to memory (visible to read).
+# Used for "write then immediately read from replica", but costs 2x RTT.
+
+# ⚠️ Critical trap:
+# If ALL synchronous_standby are down, the leader BLOCKS writes forever!
+# Must be paired with monitoring + manual fallback / Patroni auto-degrade.
+</code></pre>
+<div class="case">
+<strong>Real-world cases:</strong>
+<ul>
+<li><strong>Stripe</strong>: Postgres semi-sync, at least 1 cross-AZ replica ACK; financial data RPO=0 is the floor.</li>
+<li><strong>GitHub MySQL</strong>: semi-sync + Orchestrator; intra-region sync, cross-region async.</li>
+<li><strong>YouTube Vitess</strong>: MySQL semi-sync + replica-lag monitoring; replicas exceeding the lag threshold are auto-removed from read traffic.</li>
+<li><strong>Spanner / CockroachDB</strong>: Paxos/Raft majority ACK with no traditional primary/follower; TrueTime / HLC for global ordering, write latency in-region can be ~10 ms.</li>
+<li><strong>Aurora</strong>: 6 storage replicas (3 AZ × 2), writes need 4/6 ACK, reads need 3/6; quorum automatically routes around slow replicas.</li>
+</ul></div>
+
+<h3>3. Replication Lag: consistency is a gradient, not a binary</h3>
+<p><strong>Principle</strong>: async replication has inherent lag (ms to minutes). Three classic anomalies:</p>
+<ol>
+<li><strong>Read-your-writes violation</strong>: user uploads new avatar, refreshes, reads a lagged follower, sees old avatar, thinks the system is broken.</li>
+<li><strong>Monotonic read violation</strong>: first read hits follower A (caught up), second hits follower B (lagged), data appears to "go back in time."</li>
+<li><strong>Consistent prefix violation</strong>: a reply appears on the follower before the question it replies to (causal inversion).</li>
+</ol>
+<div class="tradeoff">
+<strong>Four mitigations (increasing strength):</strong>
+<ol>
+<li><strong>"Reads after my own writes hit the leader"</strong>: user's own content reads the leader for N seconds; everything else reads followers. Simplest, most common. Twitter, Instagram do this.</li>
+<li><strong>Session sticky + leader pinning</strong>: user session sticks to one follower, with server-side "last write time" comparison.</li>
+<li><strong>Read with replica-lag bound</strong>: client tracks last write LSN/version; replica with LSN &lt; client either waits or redirects to leader. Aurora, Spanner, TiDB support this.</li>
+<li><strong>Causal consistency</strong>: every write records causal deps; reads guarantee all deps visible. Clean in theory, complex in practice. MongoDB 5.0+ causal-consistency sessions are the industrial form.</li>
+</ol></div>
+<pre><code># Strategy 3: client carries LSN
+# After write, server returns current LSN
+write_response = leader.write(doc_id, content)
+client.last_seen_lsn = write_response.lsn  # store in session/cookie
+
+# On read, attach LSN; replica waits (with timeout) or falls back to leader
+def read(doc_id, min_lsn):
+    replica = pick_least_loaded_replica()
+    current = replica.current_lsn()
+    if current >= min_lsn:
+        return replica.read(doc_id)
+    elif current + ACCEPTABLE_GAP >= min_lsn:
+        replica.wait_for_lsn(min_lsn, timeout=50)  # ms
+        return replica.read(doc_id)
+    else:
+        return leader.read(doc_id)  # fallback
+
+# Pros: precise, doesn't waste leader capacity
+# Cons: client must persist LSN; cross-device inconsistency
+#       (write on phone, read on laptop → no shared LSN)
+#       → solved by user-level "version vector", but more complex
+</code></pre>
+<div class="case">
+<strong>Real-world cases:</strong>
+<ul>
+<li><strong>Twitter</strong>: a user's own newly posted tweet reads the leader for 5 seconds, then drops to followers; other users' tweets always go to followers. Crude but effective.</li>
+<li><strong>LinkedIn Espresso / Databus</strong>: replicas are CDC-driven, each exposes a high-watermark; client SDK auto-handles "write LSN, read at-least LSN."</li>
+<li><strong>MongoDB causal consistency</strong>: session carries <code>operationTime</code>; replica reads with <code>afterClusterTime</code> wait for alignment.</li>
+<li><strong>Facebook TAO</strong>: social-graph caching layer; writes go to primary region, followers async-invalidate; self-writes route specially.</li>
+<li><strong>Vitess @primary / @replica</strong>: app specifies routing hints (<code>SELECT ... /*vt+ ROUTE=primary */</code>), handing the decision to business logic.</li>
+</ul></div>
+
+<h3>4. Failover: what actually happens when the primary dies</h3>
+<p><strong>Principle</strong>: failover is 4 steps — (a) detect primary failure; (b) elect new primary; (c) reroute traffic; (d) reconcile when old primary returns. <em>Each step can produce an outage</em>.</p>
+<pre class="mermaid">
+sequenceDiagram
+    participant O as Orchestrator
+    participant L as Old Leader (us-east-1a)
+    participant R1 as Replica R1 (1a, semi-sync)
+    participant R2 as Replica R2 (1b, async, lag 800ms)
+    participant App as Apps
+
+    Note over L,R2: Normal: L writes, R1 sync-ACKs, R2 lags
+    L--xO: heartbeat timeout (10s)
+    O->>R1: check R1 LSN
+    O->>R2: check R2 LSN
+    Note over O: R1=lsn:1000  R2=lsn:880<br/>pick R1 (most recent)
+    O->>R1: PROMOTE
+    O->>App: reroute → R1 is the new leader
+    R1->>R2: re-establish replication
+    Note over L: L network recovers, still thinks it's leader<br/>but STONITH / fencing token invalidated
+    O->>L: DEMOTE / kill
+    Note over L: writes lsn:1000~1010 on old L: if un-ACKed, lost<br/>if already ACKed to client → data loss!
+</pre>
+<div class="tradeoff">
+<strong>Key design decisions:</strong>
+<ul>
+<li><strong>Auto vs Manual failover</strong>: auto = fast but prone to misjudgment (GC pause, network blip); manual = safe but high RTO. Most production setups use "auto + human confirm."</li>
+<li><strong>Election criteria</strong>: highest LSN wins (minimizes data loss); on tie, prefer the closest AZ with the most stable network.</li>
+<li><strong>Fencing / STONITH</strong>: must guarantee the old primary really cannot serve writes. Tools: IPMI power-off, network ACL cutoff, lease tokens — the new primary gets a higher epoch, the old primary's writes are rejected at the routing layer. <em>Failover without fencing = a split-brain time bomb</em>.</li>
+<li><strong>Majority required</strong>: Raft-class systems (etcd / CockroachDB / Patroni defaults) require majority alive to elect — this prevents split-brain but needs ≥3 nodes; 2-node topologies inevitably split-brain on failover.</li>
+</ul></div>
+<pre><code># Minimum-viable fencing token (à la ZooKeeper / etcd lease)
+# Each election bumps epoch; writes carry it
+class Leader:
+    epoch: int          # issued by coordinator (Consul / etcd)
+    def write(self, k, v):
+        coordinator.cas("epoch", expected=self.epoch)  # verify still leader
+        storage.write(k, v, epoch=self.epoch)
+
+# Routing layer / replica rejects writes with stale epoch
+def accept_write(req):
+    if req.epoch < current_known_epoch:
+        return REJECT  # old leader's zombie writes blocked here
+    return APPLY
+
+# Even if the partitioned old leader wakes up, its epoch is stale,
+# any write to replicas/storage is rejected. That's fencing.
+</code></pre>
+<div class="case">
+<strong>Real-world cases / lessons:</strong>
+<ul>
+<li><strong>GitHub 2018-10-21 24h outage</strong>: a 43-second cross-region network partition triggered Orchestrator failover; the east coast became the new primary; when the west recovered, the two sides had diverged. GitHub chose to keep the east (sacrificing ~30 min of data) and spent 24 hours reconciling metadata. Lesson: cross-region auto-failover is extremely risky — switched to human confirmation afterward.</li>
+<li><strong>Patroni + etcd</strong>: the standard Postgres HA: majority election + leader lock + fencing. Battle-tested at Zalando.</li>
+<li><strong>Redis Sentinel vs Redis Cluster</strong>: Sentinel has famous "split-brain write loss" cases (Aphyr/Jepsen 2013); Cluster mode is better but still has edge cases.</li>
+<li><strong>AWS RDS / Aurora Multi-AZ</strong>: standby auto-failover at 60-120s RTO; Aurora reuses shared storage so failover is "attach new compute to same storage" — 10-30 seconds.</li>
+<li><strong>etcd / CockroachDB / Spanner</strong>: Raft leader election is sub-second; no "traditional failover" — majority alive = writable.</li>
+</ul></div>
+
+<h2>Extensions & Optimization</h2>
+<ul>
+<li><strong>Read traffic with lag-threshold cutoff</strong>: replica lag &gt; 5 seconds = auto-removed from load balancer (YouTube Vitess, AWS RDS support this). Reading data from minutes ago is worse than returning an error.</li>
+<li><strong>Never sync-replicate across regions</strong>: cross-ocean RTT is 100-200 ms; every write pays that tax. Cross-region must be async + local strong reads + remote eventual reads.</li>
+<li><strong>CDC (Change Data Capture) as second-tier replication</strong>: Debezium / Maxwell stream binlog/WAL to Kafka; downstream heterogeneous systems (ES, cache, warehouse) subscribe. Replication is no longer just inside the DB — it's the origin of the entire data flow.</li>
+<li><strong>Logical vs Physical replication</strong>: physical (Postgres streaming, MySQL ROW binlog) is byte-level identical and fast but version/platform locked; logical (Postgres logical decoding, Debezium) crosses major versions and heterogeneous systems but is slower and has constraints (DDL, sequences, large txns). Use logical for upgrades / migrations / cross-cloud; physical for HA.</li>
+<li><strong>Multi-region writes: CDN / edge cache first, then consider multi-leader</strong>. 99% of latency issues are solved by local read replicas + edge caching — no need to enter multi-leader's conflict hell.</li>
+</ul>
+
+<h2>Common Pitfalls & Interview Questions</h2>
+<div class="callout">
+<strong>1. Treating a read replica as a backup</strong>: DROP TABLE on primary, milliseconds later the replica also DROPs. Backups must be PITR snapshots, not replicas.</div>
+<div class="callout">
+<strong>2. More replicas ≠ more write throughput</strong>: every replica adds IO and bandwidth load to the leader. Postgres with 10+ async replicas hits a ceiling. Need write scale → shard, not replicate.</div>
+<div class="callout">
+<strong>3. Read-only replicas that secretly accept writes</strong>: an admin runs a "quick fix UPDATE" on a replica; next failover that replica is promoted → data divergence. Replicas must enforce read-only (<code>default_transaction_read_only=on</code>).</div>
+<div class="callout">
+<strong>4. Failover without fencing</strong>: old primary GC-pauses for 30s; new primary elected; old primary wakes and continues accepting writes — split-brain, both sides "win," data is unreconcilable.</div>
+<div class="callout">
+<strong>5. Semi-sync silently blocks when all sync replicas are down</strong>: Postgres' default is to block writes; the business thinks it's a slow query but it's actually a complete write stop. Either monitor sync-replica availability and manually degrade, or use Patroni auto-config.</div>
+<p><strong>Likely interview follow-ups:</strong></p>
+<ol>
+<li>You design a Notion cross-region read replica. A European user edits a doc, refreshes, and doesn't see their change. How do you diagnose and fix?</li>
+<li>Explain read-your-writes, monotonic read, and consistent prefix — what user-visible anomaly does each prevent?</li>
+<li>Primary died; you have 3 followers: A lsn=1000, B lsn=995, C lsn=1000 but in another region. Pick one. Why?</li>
+<li>In a multi-leader setup, how do you handle "same row mutated concurrently in two regions"? When is LWW / CRDT / app-level arbitration appropriate?</li>
+<li>What does Postgres semi-sync's <code>synchronous_commit=remote_apply</code> guarantee beyond <code>on</code>? At what cost?</li>
+</ol>
+
+<h2>Deep Resources</h2>
+<ul>
+<li><strong>《Designing Data-Intensive Applications》Ch 5 — Replication</strong> (Kleppmann): the most authoritative single chapter on this topic. Full spectrum of leader-based / multi-leader / leaderless.</li>
+<li><strong>GitHub 2018-10-21 Incident Report</strong>: <code>github.blog/2018-10-30-oct21-post-incident-analysis</code>. Textbook RCA for cross-region auto-failover disaster.</li>
+<li><strong>Amazon Dynamo (2007) + Aurora (2017) papers</strong>: foundational reads on leaderless quorum and storage-compute separated quorum.</li>
+<li><strong>Jepsen test series</strong> (Kyle Kingsbury / aphyr.com): real behavior of MongoDB / Redis / etcd / Postgres under network partitions — often debunks official consistency claims.</li>
+<li><strong>Marc Brooker — "It's Time to Replace TCP"</strong> series: intuition for the network and timeout substrate under replication.</li>
+<li><strong>Patroni docs + Zalando engineering blog</strong>: industrial reference for Postgres production HA.</li>
+<li><strong>Vitess docs — Reparenting</strong>: the most complete open-source MySQL failover engineering.</li>
+</ul>
+
+<h2>Deep Thinking</h2>
+
+<details>
+<summary>1. Why is Raft majority-write latency in Spanner / CockroachDB more <em>stable</em> than traditional semi-sync primary-follower? What's the connection to tail latency?</summary>
+<div class="answer">
+<p>On the surface, Raft writes need majority ACK (with N=3, 2 ACKs); semi-sync also waits for 1 replica — should be similar. The difference is <strong>who waits for whom</strong>:</p>
+<ul>
+<li><strong>Semi-sync</strong>: typically waits for a <em>specific</em> sync replica. If that replica stalls (GC, disk stall, packet loss), the leader stalls. Even if the other two replicas are healthy, it doesn't help. Tail latency = max(leader, sync_replica).</li>
+<li><strong>Raft majority</strong>: waits for the <em>fastest</em> N/2+1. With N=3, 2/3 — automatically skipping the slowest replica. Tail latency ≈ median replica latency, not max.</li>
+</ul>
+<p>This is the classic distributed-systems <em>tail tolerance</em> pattern: by saying "majority + don't pin to specific replicas," single-node tail latency is removed from the critical path. Google's Spanner paper discusses this; Aurora's 6 replicas requiring 4/6 ACK works the same way (auto-skip slowest 2).</p>
+<p>The cost: (a) at least 3 nodes (2-node Raft degenerates), higher cost; (b) implementation complexity (leader election, log compaction, config changes) far above primary-follower. So small OLTP often stays on semi-sync; massive-scale / global goes Raft. <strong>From semi-sync to quorum is a clear upgrade on the availability-complexity curve, not a drop-in replacement</strong>.</p>
+</div>
+</details>
+
+<details>
+<summary>2. Was GitHub 2018's outage really avoidable by "no cross-region auto-failover," or is the lesson deeper? Why didn't Orchestrator recognize "43s network partition" vs "primary actually dead"?</summary>
+<div class="answer">
+<p>The surface lesson is "don't auto-failover across regions," but the deeper truth is <em>fault detection in distributed systems is fundamentally imperfect</em>. The FLP impossibility result tells us no asynchronous system can be both correct and complete in detecting failure. A 43s partition and "primary dead" look identical to followers: heartbeats stop.</p>
+<ul>
+<li><strong>The choice is a trade-off, not a "correct answer"</strong>: wait longer (say 60s) → worse RTO; don't wait → high false positives. GitHub's threshold was a few seconds.</li>
+<li><strong>The real root cause is "consistency boundary ≠ fault detection boundary"</strong>. With cross-region, the detector is in one region, the primary in another. The detector can't see the primary, but the primary is still alive and accepting writes (from isolated clients). This "live partition" is the most dangerous case.</li>
+<li><strong>The fix (what GitHub did)</strong>: (a) cross-region failover requires human confirmation; (b) each region elects locally via Raft, cross-region is read-only replica; (c) add quorum-style fencing — new primary must reach majority of regions to accept writes.</li>
+<li><strong>System design philosophy</strong>: "recoverability" beats "high availability." Five more minutes of downtime is far better than 24 hours of data repair. When automating, design for the worst case: "how fast can I roll back if it judges wrong" matters more than "how accurate is it."</li>
+</ul>
+<p>Analogy: self-driving in a city. Tesla picks "bold auto + occasional rear-end"; Waymo picks "cautious auto + human handover." GitHub's incident was the former philosophy hitting a wall; they pivoted to the latter. <strong>Distributed-systems maturity is not "more automation," it's "knowing where to stop and wait for a human"</strong>.</p>
+</div>
+</details>
+
+<details>
+<summary>3. Capacity estimation: 1M DAU SaaS, primary Postgres at 10k write QPS / 50k read QPS. CFO wants to cut costs: "Do we really need 5 read replicas? Can we trim to 2?" Give a quantitative analysis.</summary>
+<div class="answer">
+<p>Before cutting, decompose what each replica does. Lump-sum answers are always wrong.</p>
+<p><strong>5 distinct roles replicas serve, each with different sizing needs:</strong></p>
+<ul>
+<li><strong>Read capacity scaling</strong>: 50k read QPS / 15k per replica = at least 4 replicas. Cutting to 2 = read-overload.</li>
+<li><strong>HA / failover standby</strong>: at least 1 semi-sync same-AZ; can't share with read traffic (failover would halve read capacity).</li>
+<li><strong>Analytics isolation</strong>: BI / data export on a dedicated replica to avoid hurting online reads. Usually 1.</li>
+<li><strong>Geo-local reads</strong>: 1 per dense user region. EU + US + APAC = 3.</li>
+<li><strong>Backup / DR</strong>: 1 cross-region async for disaster recovery.</li>
+</ul>
+<p><strong>Sum</strong>: 4 (read) + 1 (HA sync) + 1 (analytics) + several cross-region ≈ 7-8. The current 5 is already compressed.</p>
+<p><strong>Real consequences of cutting to 2</strong>:</p>
+<ul>
+<li>Read capacity drops from 60k to 30k QPS (including leader); peak traffic crashes;</li>
+<li>Analytics queries on OLTP nodes; slow queries drag down the whole DB;</li>
+<li>Loss of geo-local reads; EU users' P99 goes from 50ms to 200ms;</li>
+<li>During failover the only remaining replica gets all the traffic — potential cascading failure.</li>
+</ul>
+<p><strong>Real cost-cutting alternative</strong>:</p>
+<ol>
+<li>Cache (Redis) intercepts 70% of reads → replicas can drop from 4 to 2;</li>
+<li>Analytics goes through CDC → ClickHouse / BigQuery; replicas no longer carry BI;</li>
+<li>Cross-region replicas: keep only EU (largest market); APAC degrades to us-east + edge CDN;</li>
+<li>HA replicas use cheaper SKUs (no read traffic, just WAL catch-up).</li>
+</ol>
+<p><em>Answer to CFO</em>: don't cut blindly. But $80k/month (5 × r6i.4xlarge) can become $40k/month — provided you first invest in a Redis cluster, CDC pipeline, and monitoring. That's "moving cost from hardware to engineering" — one-time engineering investment for long-term savings.</p>
+<p>"Replica count" is never a standalone config; it's the result of the entire read-path architecture.</p>
+</div>
+</details>
+
+<details>
+<summary>4. CRDT sounds like a silver bullet for multi-leader conflicts (auto-merge, no coordination). What are its hard limits? Why do Google Docs / Figma still need a server-side authority even with OT/CRDT?</summary>
+<div class="answer">
+<p>CRDT (Conflict-free Replicated Data Type) really does mathematize "merge," but several hard constraints prevent it from replacing server authority:</p>
+<ul>
+<li><strong>(a) Only effective for "structured data"</strong>. Counter, Set, Map types with algebraic properties (associative, commutative, idempotent) work; complex business rules (inventory must be ≥ 0), or side effects (sending email), can't be CRDT-ified.</li>
+<li><strong>(b) Metadata bloat</strong>. OR-Set must record actor+timestamp per element and keep tombstones for deletion to prevent resurrection; for large docs, CRDT metadata is 10-100x the content itself, and long-term use requires GC — GC needs coordination, back to the coordination problem.</li>
+<li><strong>(c) Can't express "what happened most recently"</strong>. CRDT merge is commutative — meaning the real order of events is lost. "First a message, then a reply" can be reversed in CRDT view (commutativity ≠ causal preservation).</li>
+<li><strong>(d) Permissions, audit, billing need ground truth</strong>. Two clients adding a collaborator to the same doc — the CRDT union is "correct," but "who added first" and "when" determine billing — server arbitration needed.</li>
+<li><strong>(e) Real-time collaboration needs "what others are doing right now" awareness</strong>. Cursor position, selection highlight — not CRDT state (these are ephemeral) — needs a hub to relay.</li>
+</ul>
+<p><strong>Figma's real architecture</strong>: CRDT handles graphical objects (layer z-order, node attributes CRDT-ified), but server handles session management, permissions, version snapshots, cross-user coordination. The server is not the "state authority" but the "coordination and persistence hub." Google Docs is similar — OT runs on the client, server accepts, sequences, broadcasts + saves.</p>
+<p><strong>Conclusion</strong>: CRDT is a tool for "multi-write conflict-free merge," not an architecture for "no server at all." It compresses the server's role from "arbitrate every write" down to "coordinate metadata events + persist." Understanding this avoids the "rewrite everything in CRDT" trap. <em>Truly leaderless systems barely exist; the leader's role is just compressed to the minimum</em>.</p>
+</div>
+</details>
+
+<details>
+<summary>5. Cross-chapter: Sharding (Day 4) + Replication (Day 5) deployed together — how do you reason about failure domains? E.g., 32 shards × 3 replicas = 96 nodes; one AZ goes down, what's the availability?</summary>
+<div class="answer">
+<p>Sharding and replication are orthogonal but their failure domains must be reasoned about together. Simple cases:</p>
+<ul>
+<li><strong>Cross-AZ deployment</strong>: each shard's 3 replicas distributed across 3 AZs. AZ down → each shard loses 1 replica, 2/3 remain → still writable (majority alive). Availability ≈ 100%.</li>
+<li><strong>Same-AZ deployment</strong>: all 3 replicas in one AZ → AZ down = entire shard down. 32 shards all down = total outage.</li>
+<li><strong>Mixed (most common)</strong>: leader + 1 sync replica in same region different AZs; 1 async replica cross-region. AZ down → lose leader or sync replica, failover to remaining.</li>
+</ul>
+<p><strong>Key insight: sharding amplifies AZ failure blast radius</strong>. Single DB: AZ down affects 1 DB. 32 shards: AZ down triggers 32 concurrent failovers — orchestrator capacity, network capacity, client retries all stress-tested at once. GitHub, Slack have all seen "AZ down → multi-shard concurrent failover → control plane overloaded → cascading failure."</p>
+<p><strong>Mitigations</strong>:</p>
+<ul>
+<li>Rate-limit failover (e.g., promote at most 5 shards/sec);</li>
+<li>Client retry with jitter + exponential backoff to avoid thundering herd;</li>
+<li>Regular AZ-level chaos engineering to expose hidden serialization points;</li>
+<li>Capacity planning for "1 AZ down + 1 failure domain unavailable simultaneously" (N-2, not N-1).</li>
+</ul>
+<p><strong>Order of magnitude</strong>: 96 nodes evenly across 3 AZs, single AZ down — theoretically 100% available, but in practice typically drops to 95-98% (some shards 5-30s unavailable during failover, client retry storms, alert noise). Multi-region (active-active across regions) can drive single-region failure to true 100% availability, at the cost of conflict resolution + cross-region write latency.</p>
+<p><em>Interview punch line</em>: "Sharding is horizontal scaling, replication is failure insurance — they solve different problems and amplify each other's complexity. Any answer that mentions only one is incomplete."</p>
+</div>
+</details>
+
+</div></body></html>

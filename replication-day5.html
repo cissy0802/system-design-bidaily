@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 5 · 复制 (Replication) — System Design Bi-daily</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"SF Pro Display","Noto Sans SC",sans-serif;background:#0e1419;color:#d4dae0;line-height:1.75}
+.container{max-width:820px;margin:0 auto;padding:24px 20px 60px}
+header{padding:40px 0 28px;border-bottom:1px solid rgba(100,200,255,0.15);margin-bottom:32px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;font-size:0.78rem}
+.tag{padding:3px 10px;border-radius:4px;background:rgba(100,200,255,0.12);color:#64c8ff;border:1px solid rgba(100,200,255,0.25)}
+.tag.diff{background:rgba(94,234,212,0.1);color:#5eead4;border-color:rgba(94,234,212,0.3)}
+.tag.day{background:rgba(255,180,80,0.1);color:#ffb450;border-color:rgba(255,180,80,0.25)}
+h1{font-size:1.75rem;font-weight:800;background:linear-gradient(135deg,#64c8ff 0%,#5eead4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px;line-height:1.3}
+h1 .en{display:block;font-size:1rem;color:#7a8590;-webkit-text-fill-color:#7a8590;margin-top:6px;font-weight:500}
+h2{font-size:1.2rem;color:#5eead4;margin:36px 0 14px;padding-left:12px;border-left:3px solid #5eead4}
+h3{font-size:1rem;color:#64c8ff;margin:20px 0 10px;font-weight:600}
+p{margin:10px 0;color:#c8cfd6}
+ul,ol{margin:10px 0 10px 22px;color:#c8cfd6}
+li{margin:6px 0}
+strong{color:#e8eef5;font-weight:600}
+em{color:#5eead4;font-style:normal;font-weight:500}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;background:rgba(100,200,255,0.1);color:#5eead4;padding:1px 6px;border-radius:3px;font-size:0.88em}
+pre{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.84rem;line-height:1.55;color:#c8cfd6}
+pre code{background:none;color:inherit;padding:0;font-size:1em}
+.mermaid{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:18px;margin:14px 0;text-align:center;overflow-x:auto;cursor:zoom-in;transition:border-color 0.15s}
+.mermaid:hover{border-color:rgba(100,200,255,0.4)}
+.mermaid svg{width:100%;max-width:100%;height:auto;min-height:280px}
+.lightbox{position:fixed;inset:0;background:rgba(8,12,18,0.96);z-index:9999;display:none;align-items:center;justify-content:center;padding:24px;cursor:grab;backdrop-filter:blur(4px);overflow:hidden}
+.lightbox.open{display:flex}
+.lightbox.dragging{cursor:grabbing}
+.lightbox svg{width:auto;height:auto;max-width:96vw;max-height:92vh;transform-origin:center center;will-change:transform}
+.lightbox .hint{position:fixed;top:16px;right:20px;font-size:0.78rem;color:#7a8590;font-family:"SF Mono",Menlo,monospace;pointer-events:none}
+.callout{background:rgba(255,180,80,0.06);border-left:3px solid #ffb450;padding:12px 14px;margin:14px 0;border-radius:4px;font-size:0.94rem}
+.callout strong{color:#ffb450}
+.tradeoff{background:rgba(100,200,255,0.05);border:1px solid rgba(100,200,255,0.2);border-radius:6px;padding:12px 14px;margin:12px 0;font-size:0.94rem}
+.case{background:rgba(94,234,212,0.05);border-left:3px solid #5eead4;padding:12px 14px;margin:12px 0;border-radius:4px;font-size:0.94rem}
+.case strong{color:#5eead4}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.9rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid rgba(100,200,255,0.15)}
+th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
+details{background:rgba(100,200,255,0.04);border:1px solid rgba(100,200,255,0.18);border-radius:6px;padding:12px 16px;margin:10px 0;transition:all 0.15s}
+details:hover{border-color:rgba(100,200,255,0.35)}
+details[open]{background:rgba(94,234,212,0.05);border-color:rgba(94,234,212,0.3)}
+details summary{font-weight:600;color:#e8eef5;list-style:none;outline:none;cursor:pointer;display:flex;align-items:flex-start;gap:10px;font-size:0.96rem}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:'▶';color:#64c8ff;font-size:0.75em;transition:transform 0.2s;flex-shrink:0;margin-top:5px}
+details[open] summary::before{transform:rotate(90deg);color:#5eead4}
+details .answer{margin-top:12px;padding-top:12px;border-top:1px dashed rgba(100,200,255,0.18);color:#c8cfd6;font-size:0.93rem;line-height:1.7}
+details .answer ul,details .answer ol{margin:6px 0 6px 22px}
+@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}pre{font-size:0.72rem}}
+</style>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:true,theme:'base',flowchart:{useMaxWidth:true,htmlLabels:true,nodeSpacing:50,rankSpacing:60},themeVariables:{primaryColor:'#1a2530',primaryTextColor:'#e8eef5',primaryBorderColor:'#64c8ff',lineColor:'#5eead4',secondaryColor:'#0e1419',tertiaryColor:'#0a0f14',background:'#0a0f14',mainBkg:'#1a2530',secondBkg:'#0e1419',textColor:'#d4dae0',fontFamily:'-apple-system,"SF Pro Display",sans-serif',fontSize:'16px'}});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const lb=document.createElement('div');lb.className='lightbox';
+  lb.innerHTML='<span class="hint">scroll = zoom · drag = pan · Esc / click bg = close</span>';
+  document.body.appendChild(lb);
+  let scale=1,panX=0,panY=0,dragging=false,moved=false,lx=0,ly=0;
+  const apply=()=>{const s=lb.querySelector('svg');if(s)s.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`};
+  const reset=()=>{scale=1;panX=0;panY=0};
+  const close=()=>{lb.classList.remove('open');const s=lb.querySelector('svg');if(s)s.remove();reset()};
+  document.addEventListener('click',e=>{
+    if(e.target.closest('.lightbox')){if(moved){moved=false;return}close();return}
+    const w=e.target.closest('.mermaid');if(!w)return;
+    const svg=w.querySelector('svg');if(!svg)return;
+    const c=svg.cloneNode(true);c.removeAttribute('style');
+    c.style.maxWidth='96vw';c.style.maxHeight='92vh';
+    lb.appendChild(c);lb.classList.add('open');reset();apply();
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  lb.addEventListener('wheel',e=>{
+    if(!lb.classList.contains('open'))return;
+    e.preventDefault();
+    const svg=lb.querySelector('svg');if(!svg)return;
+    const ns=Math.max(0.3,Math.min(10,scale*(1-e.deltaY*0.002)));
+    const r=svg.getBoundingClientRect();
+    const cx=e.clientX-(r.left+r.width/2),cy=e.clientY-(r.top+r.height/2);
+    const k=ns/scale-1;panX-=cx*k;panY-=cy*k;scale=ns;apply();
+  },{passive:false});
+  lb.addEventListener('mousedown',e=>{
+    if(!lb.classList.contains('open'))return;
+    dragging=true;moved=false;lx=e.clientX;ly=e.clientY;lb.classList.add('dragging');e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const dx=e.clientX-lx,dy=e.clientY-ly;
+    if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
+    panX+=dx;panY+=dy;lx=e.clientX;ly=e.clientY;apply();
+  });
+  document.addEventListener('mouseup',()=>{dragging=false;lb.classList.remove('dragging')});
+});
+</script>
+</head><body><div class="container">
+
+<header>
+<div class="meta">
+<span class="tag day">Day 5</span>
+<span class="tag diff">Hard</span>
+<span class="tag">Database</span>
+<span class="tag">Replication</span>
+<span class="tag">Consistency</span>
+<span class="tag">Failover</span>
+</div>
+<h1>复制 (Replication) — 你以为复制是为了读扩展，其实是为了那一次故障<span class="en">Leader-Follower vs Multi-leader vs Leaderless, Sync vs Async, Replication Lag, Failover</span></h1>
+</header>
+
+<h2>问题场景与约束</h2>
+<p>设计一个跨大洲的协作文档平台（类 Notion / Linear / GitHub），读写比 <strong>100:1</strong>，写 <strong>~5k QPS</strong>、读 <strong>~500k QPS</strong>，欧美亚三大洲都有用户，欧洲用户希望读延迟 P99 &lt; 50 ms。同时要求：</p>
+<ul>
+<li><strong>RPO（数据丢失上限） ≤ 1 秒</strong>：单 region 整片故障，最多丢 1 秒写入。</li>
+<li><strong>RTO（恢复时间） ≤ 60 秒</strong>：主库挂了一分钟内必须自动 failover，业务可写。</li>
+<li><strong>读你自己刚写的（read-your-writes）</strong>：用户改完文档刷新页面，必须看到自己刚才的改动。</li>
+<li><strong>单调读（monotonic read）</strong>：连续两次刷新，时间不能倒退（不能第一次看到评论，第二次又消失）。</li>
+</ul>
+<p>这些约束看似温和，组合在一起就把『随便加个 read replica』的方案打回原型。复制是少数几个『不复杂的方案根本无法工作』的领域——单机扛不住、主从有 lag、跨区域有光速延迟、failover 有 split-brain 风险。<em>复制本质是为故障买保险，读扩展只是顺带的副作用</em>。</p>
+
+<h2>高层架构</h2>
+<pre class="mermaid">
+graph TD
+    subgraph US["us-east (Primary Region)"]
+        APP_US["App us-east"]
+        L["Leader (Primary)<br/><i>所有写, 同区强一致读</i>"]
+        F1[("Sync Replica<br/><i>同 AZ, semi-sync</i>")]
+        F2[("Async Replica<br/><i>跨 AZ</i>")]
+    end
+    subgraph EU["eu-west"]
+        APP_EU["App eu-west"]
+        R_EU[("Read Replica<br/><i>async, lag 100-500ms</i>")]
+    end
+    subgraph AP["ap-south"]
+        APP_AP["App ap-south"]
+        R_AP[("Read Replica<br/><i>async, lag 200-800ms</i>")]
+    end
+
+    CONSUL["Orchestrator + Consul<br/><i>健康检查 / failover</i>"]
+
+    APP_US -- write --> L
+    APP_US -- read --> L
+    L == sync ==> F1
+    L -. async .-> F2
+    L -. async (WAN) .-> R_EU
+    L -. async (WAN) .-> R_AP
+    APP_EU -- read --> R_EU
+    APP_AP -- read --> R_AP
+    APP_EU -- write --> L
+    APP_AP -- write --> L
+    CONSUL -. monitor .-> L
+    CONSUL -. monitor .-> F1
+
+    classDef leader fill:#2a1530,stroke:#ff7ab6,color:#e8eef5
+    classDef sync fill:#1a2530,stroke:#64c8ff,color:#e8eef5
+    classDef async fill:#0e2030,stroke:#5eead4,color:#e8eef5
+    classDef ctl fill:#1a1a30,stroke:#ffb450,color:#e8eef5
+    class L leader
+    class F1 sync
+    class F2,R_EU,R_AP async
+    class CONSUL ctl
+</pre>
+<p style="font-size:0.88rem;color:#7a8590;text-align:center;margin-top:-6px">单 leader 写入 + 同 AZ semi-sync 副本（保 RPO）+ 跨 AZ async（保读容量）+ 跨 region async（保就近读）。Orchestrator 负责健康检查与自动 failover。</p>
+
+<h2>关键技术点</h2>
+
+<h3>1. 拓扑选型：Leader-Follower vs Multi-leader vs Leaderless</h3>
+<p><strong>原理</strong>：复制拓扑决定了写路径走哪里、冲突由谁裁决。三种基本模式：</p>
+<ul>
+<li><strong>Leader-Follower（单主）</strong>：所有写经过 leader，follower 异步/同步复制 leader 的 WAL。<em>无写冲突</em>，故障切换是核心难点。</li>
+<li><strong>Multi-leader（多主）</strong>：多个 region 各自接受写，再相互复制。<em>需解决写冲突</em>（同一 key 同时在两个 region 改）。</li>
+<li><strong>Leaderless（无主）</strong>：客户端直接写多个副本，用 quorum（W+R&gt;N）保证读到最新。<em>没有 leader 角色</em>，故障切换不存在但读放大。</li>
+</ul>
+<table>
+<thead><tr><th></th><th>Leader-Follower</th><th>Multi-leader</th><th>Leaderless (Dynamo)</th></tr></thead>
+<tbody>
+<tr><td><strong>写路径</strong></td><td>必须打 leader</td><td>就近 leader</td><td>客户端打 N 个副本</td></tr>
+<tr><td><strong>冲突</strong></td><td>无</td><td>有, 需 CRDT / LWW / 应用裁决</td><td>有, sloppy quorum 时</td></tr>
+<tr><td><strong>跨区域写延迟</strong></td><td>差 (跨洋 RTT 150ms)</td><td>好 (就近)</td><td>好 (就近)</td></tr>
+<tr><td><strong>读一致性</strong></td><td>强 (读 leader) 或最终 (读 follower)</td><td>最终</td><td>可调 (R+W&gt;N → 强)</td></tr>
+<tr><td><strong>故障切换</strong></td><td>复杂 (split-brain 风险)</td><td>简单 (其他 leader 接管)</td><td>不存在</td></tr>
+<tr><td><strong>典型</strong></td><td>Postgres, MySQL, MongoDB, Redis</td><td>BDR Postgres, MySQL Group Repl, CouchDB</td><td>Cassandra, DynamoDB, Riak, ScyllaDB</td></tr>
+</tbody></table>
+<div class="tradeoff">
+<strong>怎么选：</strong>
+<ul>
+<li><strong>OLTP 单区域 / 弱跨区域要求</strong> → Leader-Follower。99% 的场景的正确答案。</li>
+<li><strong>真正需要跨区域低延迟写</strong>（社交 like、地理分散的协作）→ Multi-leader 或 Leaderless。但要接受冲突合并复杂度。</li>
+<li><strong>极致可用、可接受最终一致</strong>（购物车、点赞计数）→ Leaderless + CRDT。</li>
+<li><em>反模式</em>：把 multi-leader 当作 leader-follower 用——『反正都是主，就近写』，结果出现两边同时改同一行，最后只剩一份且不可预测。</li>
+</ul></div>
+<pre><code># 多主冲突的经典 LWW (Last-Writer-Wins) 陷阱
+# Region A: user.email = "alice@old.com"  at t=100
+# Region B: user.email = "alice@new.com"  at t=101 (时钟漂移 +50ms 实际是 51)
+# 复制后两边都取 max(timestamp) → "alice@new.com" ✓ 看似没问题
+
+# 但是：
+# Region A: balance -= 100  (扣款)   at t=200
+# Region B: balance -= 200  (扣款)   at t=200 (并发)
+# LWW 只保留一笔扣款! 另一笔静默丢失.
+# → 数值/集合类必须用 CRDT (g-counter / OR-set) 或显式合并函数,
+#   不能依赖 LWW.
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>GitHub</strong>：MySQL 单主 + Orchestrator failover；2018 年那次 24h outage 就是跨区域 failover 后回切产生数据分歧（详见技术点 4）。</li>
+<li><strong>Cassandra / DynamoDB</strong>：leaderless + tunable consistency；Discord 用 Cassandra 存消息，读写 QUORUM 平衡延迟与一致性。</li>
+<li><strong>Riak / Shopping Cart</strong>：Amazon 购物车经典 multi-master + CRDT，节点分区时两边都加商品，合并取并集（宁多不丢）。</li>
+<li><strong>Apple iCloud Notes / Figma</strong>：客户端-服务端本质是 multi-leader，用 OT/CRDT 解决并发编辑冲突。</li>
+</ul></div>
+
+<h3>2. Sync vs Async vs Semi-sync：一致性、延迟、可用性的三角</h3>
+<p><strong>原理</strong>：leader 收到写之后，什么时候回 ACK 给客户端？取决于复制是同步还是异步。</p>
+<ul>
+<li><strong>Sync</strong>：等所有副本都写入再 ACK。<em>0 数据丢失</em>但 1 个副本慢全集群慢，1 个挂全集群不可写。</li>
+<li><strong>Async</strong>：写完 leader 立即 ACK，副本异步追。<em>延迟最低</em>但 leader 挂了未复制的写丢。</li>
+<li><strong>Semi-sync</strong>：等 <em>至少 1 个</em> 副本 ACK 再回。折中——大多数生产系统的默认。</li>
+</ul>
+<pre class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant L as Leader
+    participant S as Sync Replica
+    participant A as Async Replica
+
+    Note over C,A: Semi-sync (Postgres synchronous_commit=on, 1 副本)
+    C->>L: write x=1
+    L->>L: WAL fsync
+    L->>S: stream WAL
+    L->>A: stream WAL
+    S-->>L: ACK (durable)
+    L-->>C: OK (此时已有 2 副本)
+    A-->>L: ACK (later, 延迟)
+
+    Note over C,A: 若 S 卡住超时, 退化为 async (可用性 > 一致性)
+</pre>
+<div class="tradeoff">
+<strong>三种语义的边界：</strong>
+<ul>
+<li><strong>纯 Sync (N 个副本全 ACK)</strong>：实质等同 Paxos/Raft 多数派。生产中很少用『全 ACK』，因 1 个慢副本即 tail latency 杀手。</li>
+<li><strong>Semi-sync (Postgres / MySQL)</strong>：『至少 K 个副本』；K=1 最常见，K=2 用于跨 AZ 多活。<em>关键陷阱</em>：所有 sync 副本都不响应时，Postgres 默认会卡住等待——不是降级为 async。MySQL 默认 10 秒超时自动降级（<code>rpl_semi_sync_master_timeout</code>），有静默数据丢失风险。</li>
+<li><strong>Async</strong>：低延迟、跨区域读副本几乎必用 async（跨洋同步等于 100+ ms 写 latency 罚款）。</li>
+<li><strong>Quorum (Raft 自动多数派)</strong>：W=(N/2)+1，N=3 时 W=2，自动选 2 个最快副本 ACK——既快又不卡。etcd、CockroachDB、TiKV、Spanner 都是这套。</li>
+</ul></div>
+<pre><code># Postgres semi-sync 配置 (示例)
+# postgresql.conf
+synchronous_commit = on
+synchronous_standby_names = 'ANY 1 (replica1, replica2, replica3)'
+# 含义: 等任意 1 个副本 fsync 完成即 ACK
+# 若改为 'FIRST 2 (...)' 则要求按顺序 2 个副本 ACK
+
+# ⚠️ synchronous_commit=remote_apply 比 on 多一步:
+# 等副本 apply 到内存可读, 才 ACK.
+# 用于"写后立刻在副本读"场景, 但代价是 RTT × 2.
+
+# ⚠️ 关键 trap:
+# 若所有 synchronous_standby 都挂, leader 永久阻塞写!
+# 必须配合监控 + 手动降级 / Patroni 自动降级.
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Stripe</strong>：Postgres semi-sync，跨 AZ 至少 1 个副本 ACK；金融数据 RPO=0 是底线。</li>
+<li><strong>GitHub MySQL</strong>：semi-sync + Orchestrator；同 region 内 sync，跨 region 副本 async。</li>
+<li><strong>YouTube Vitess</strong>：MySQL semi-sync + 副本 lag 监控，超阈值自动从读流量摘除。</li>
+<li><strong>Spanner / CockroachDB</strong>：Paxos/Raft 多数派 ACK，没有传统主从概念；用 TrueTime / HLC 保证全局顺序，写延迟跨区域可低至 10 ms（同区域多数派）。</li>
+<li><strong>Aurora</strong>：分离存储层用 6 副本（3 AZ × 2），写要求 4/6 ACK，读要求 3/6；底层 quorum 自动避开慢副本。</li>
+</ul></div>
+
+<h3>3. Replication Lag：你以为一致性是 0 或 1，其实是渐变光谱</h3>
+<p><strong>原理</strong>：异步复制必然有 lag（毫秒到分钟）。lag 引发的三大异常：</p>
+<ol>
+<li><strong>Read-your-writes 违反</strong>：用户更新头像后刷新，读到 follower（lag 未到），看到旧头像，以为系统坏了。</li>
+<li><strong>Monotonic read 违反</strong>：第一次读打 follower A（已同步），第二次打 follower B（lag），数据『回到过去』。</li>
+<li><strong>Consistent prefix 违反</strong>：副本看到 reply 在 question 之前到达（因果反转）。</li>
+</ol>
+<div class="tradeoff">
+<strong>四种应对策略（按强度递增）：</strong>
+<ol>
+<li><strong>『刚写完的请求强制读 leader』</strong>：本人写的内容在 N 秒内读 leader，其他请求读 follower。最简单、最常用。Twitter、Instagram 都这么做。</li>
+<li><strong>Session sticky + leader pinning</strong>：用户会话粘到一个 follower，避免跨 follower 跳。配合 server-side『最后写入时间』比较。</li>
+<li><strong>Read with replica lag bound</strong>：客户端记录上次写的 LSN/version，读时附带；副本若 LSN &lt; client 则等待或重定向 leader。Aurora、Spanner、TiDB 支持。</li>
+<li><strong>Causal consistency</strong>：每个写记录因果依赖，读保证看到所有依赖。学术干净、工程复杂；MongoDB 5.0+ causal consistency session 是工业实现。</li>
+</ol></div>
+<pre><code># 策略 3 的实现: 客户端携带 LSN
+# 写后, 服务端返回当前 LSN
+write_response = leader.write(doc_id, content)
+client.last_seen_lsn = write_response.lsn  # 存 session/cookie
+
+# 读时附带 LSN, 副本若落后则等待 (有超时) 或转主
+def read(doc_id, min_lsn):
+    replica = pick_least_loaded_replica()
+    current = replica.current_lsn()
+    if current >= min_lsn:
+        return replica.read(doc_id)
+    elif current + ACCEPTABLE_GAP >= min_lsn:
+        replica.wait_for_lsn(min_lsn, timeout=50)  # ms
+        return replica.read(doc_id)
+    else:
+        return leader.read(doc_id)  # fallback
+
+# 优点: 精确, 不浪费 leader 容量
+# 缺点: 客户端要存 LSN; 跨设备不一致 (手机写, 电脑读不到)
+#       → 用 user-level "version vector" 解决, 但更复杂
+</code></pre>
+<div class="case">
+<strong>现实案例：</strong>
+<ul>
+<li><strong>Twitter</strong>：用户自己刚发的 tweet 读 leader 5 秒，之后允许走 follower；他人 tweet 立即走 follower。简单粗暴但有效。</li>
+<li><strong>LinkedIn Espresso / Databus</strong>：副本基于 CDC，每个副本暴露 high-watermark；客户端 SDK 自动『write LSN, read at-least LSN』。</li>
+<li><strong>MongoDB causal consistency</strong>：客户端 session 带 <code>operationTime</code>，副本读时 <code>afterClusterTime</code> 等待对齐。</li>
+<li><strong>Facebook TAO</strong>：social graph 缓存层，写穿透到主区域，followers 异步失效；读自己写的特殊路由。</li>
+<li><strong>Vitess @primary / @replica</strong>：应用显式指定路由 hint（<code>SELECT ... /*vt+ ROUTE=primary */</code>），把决策权交给业务。</li>
+</ul></div>
+
+<h3>4. Failover：主挂了之后真正发生的事</h3>
+<p><strong>原理</strong>：failover 包含 4 步：（a）检测主故障；（b）选新主；（c）切换路由；（d）老主复活时的角色裁定。<em>每一步都能制造 outage</em>。</p>
+<pre class="mermaid">
+sequenceDiagram
+    participant O as Orchestrator
+    participant L as Old Leader (us-east-1a)
+    participant R1 as Replica R1 (1a, semi-sync)
+    participant R2 as Replica R2 (1b, async, lag 800ms)
+    participant App as Apps
+
+    Note over L,R2: 正常: L 写, R1 sync ACK, R2 lag
+    L--xO: 心跳超时 (10s)
+    O->>R1: 检查 R1 LSN
+    O->>R2: 检查 R2 LSN
+    Note over O: R1=lsn:1000  R2=lsn:880<br/>选 R1 (最新)
+    O->>R1: PROMOTE
+    O->>App: 切路由 → R1 作为新 leader
+    R1->>R2: 重新建立复制
+    Note over L: L 网络恢复, 自认还是 leader<br/>但 STONITH/fencing token 已失效
+    O->>L: DEMOTE / kill
+    Note over L: 旧 L 上 lsn:1000~1010 的写若未 ACK<br/>直接丢; 若已 ACK 给客户端 → 数据丢失!
+</pre>
+<div class="tradeoff">
+<strong>关键设计决策：</strong>
+<ul>
+<li><strong>Auto vs Manual failover</strong>：自动恢复快但易误判（GC 暂停、网络抖动）；手动安全但 RTO 高。多数生产用『自动 + 人工 confirm』。</li>
+<li><strong>选新主的标准</strong>：最新 LSN 优先（数据丢最少）；若多个 LSN 相同，选同 AZ 最近、网络最稳。</li>
+<li><strong>Fencing / STONITH</strong>：必须保证旧主『真的不能再服务』。手段：硬件 IPMI 关机、网络层 ACL 切断、租约（lease）token——新主获得更高 epoch，旧主任何写被路由层拒绝。<em>没有 fencing 的 failover = split-brain 定时炸弹</em>。</li>
+<li><strong>多数派要求</strong>：Raft 类（etcd / CockroachDB / Patroni 默认）需要多数派存活才能选主——这避免脑裂但要求至少 3 节点；2 节点拓扑 failover 必然 split-brain。</li>
+</ul></div>
+<pre><code># Fencing token 的最小可行实现 (类 ZooKeeper / etcd lease)
+# 每次主选举, epoch 递增, 写时携带
+class Leader:
+    epoch: int          # 由 coordinator (Consul / etcd) 颁发
+    def write(self, k, v):
+        coordinator.cas("epoch", expected=self.epoch)  # 验证我仍是 leader
+        storage.write(k, v, epoch=self.epoch)
+
+# 路由层 / 副本拒绝低 epoch 的写
+def accept_write(req):
+    if req.epoch < current_known_epoch:
+        return REJECT  # 旧主的 zombie write 在此被拦
+    return APPLY
+
+# 旧主网络分区后即使复活, 它的 epoch 已是 stale,
+# 任何写到副本/存储层都被拒. 这就是 fencing.
+</code></pre>
+<div class="case">
+<strong>现实案例 / 教训：</strong>
+<ul>
+<li><strong>GitHub 2018-10-21 24h outage</strong>：跨区域 43 秒网络分区触发 Orchestrator failover；东岸成新主接受写；西岸网络恢复后两边数据分歧，他们选择保留东岸（约半小时数据丢失）并花了 24 小时核对、修复元数据。教训：跨区域 auto-failover 风险极高，事后改为人工确认。</li>
+<li><strong>Patroni + etcd</strong>：Postgres 的标准 HA，多数派选主 + leader lock + fencing；Zalando 在产。</li>
+<li><strong>Redis Sentinel vs Redis Cluster</strong>：Sentinel 有著名的『split-brain 写丢』案例（Aphyr/Jepsen 2013 测试）；Cluster 模式好但仍有边界情况。</li>
+<li><strong>AWS RDS / Aurora Multi-AZ</strong>：standby 自动 failover，60-120 秒 RTO；Aurora 因存储共享，failover 只是『换个计算节点 attach 同一份存储』，10-30 秒搞定。</li>
+<li><strong>etcd / CockroachDB / Spanner</strong>：Raft 内置 leader election，秒级；无『传统 failover』概念，多数派活着即可写。</li>
+</ul></div>
+
+<h2>扩展与优化</h2>
+<ul>
+<li><strong>读流量分配带 lag 阈值熔断</strong>：副本 lag &gt; 5 秒自动从负载均衡剔除（YouTube Vitess、AWS RDS 都支持）。否则用户读到几分钟前数据，比直接报错更糟。</li>
+<li><strong>跨区域不要同步复制</strong>：跨洋 RTT 100-200 ms，每次写多收一次罚款。跨区域必 async + 本地强一致读 + 远端最终一致读。</li>
+<li><strong>CDC（Change Data Capture）作为复制的二级形态</strong>：Debezium / Maxwell 把 binlog/WAL 流出到 Kafka，下游异构系统（ES、缓存、数仓）订阅。复制不再只是数据库内部事，而是整个数据流的源。</li>
+<li><strong>Logical vs Physical replication</strong>：物理复制（Postgres streaming, MySQL binlog ROW）字节级一致快但版本/平台绑死；逻辑复制（Postgres logical decoding, Debezium）跨大版本/异构系统但慢、有约束（DDL、序列、大事务）。升级、迁移、跨云用逻辑；HA 用物理。</li>
+<li><strong>多 region 写：先 CDN / edge cache，再考虑 multi-leader</strong>。99% 的 latency 问题靠就近读副本和 edge 缓存解决，无需引入 multi-leader 的冲突地狱。</li>
+</ul>
+
+<h2>常见陷阱与面试问题</h2>
+<div class="callout">
+<strong>1. 把 read replica 当 backup</strong>：DROP TABLE 在主上，几毫秒后副本也 DROP 了。备份必须是 PITR snapshot，不是副本。</div>
+<div class="callout">
+<strong>2. 副本数量 ≠ 写吞吐扩展</strong>：每加一个副本，主库 IO 和带宽都涨一份。Postgres 单主带 10+ async 副本就到瓶颈了。要写扩展去分片，不是加副本。</div>
+<div class="callout">
+<strong>3. 副本只读但偷偷写</strong>：管理员『在副本上跑一个 quick fix UPDATE』，下次 failover 那个副本被提升 → 数据分歧。副本必须强制只读（<code>default_transaction_read_only=on</code>）。</div>
+<div class="callout">
+<strong>4. 没 fencing 的 failover</strong>：旧主 GC 暂停 30 秒，新主选出后旧主醒来继续接写——split-brain，两边都赢，数据不可调和。</div>
+<div class="callout">
+<strong>5. semi-sync 副本全挂时主静默卡死</strong>：Postgres 默认行为是阻塞等待，业务以为是慢查询其实是写完全停止。要么监控 sync 副本可用性 → 手动降级，要么用 Patroni 自动配置。</div>
+<p><strong>面试可能追问：</strong></p>
+<ol>
+<li>你设计 Notion 跨区域读副本，欧洲用户改了文档刷新页面看不到改动，怎么排查 + 修复？</li>
+<li>解释 read-your-writes、monotonic read、consistent prefix 三种一致性，每个对应什么用户可见异常？</li>
+<li>主库挂了，你有 3 个 follower：A lsn=1000、B lsn=995、C lsn=1000 但跨 region。选谁？为什么？</li>
+<li>Multi-leader 配置下如何处理『同一行被两个 region 同时改』？LWW / CRDT / 业务裁决各适合什么？</li>
+<li>Postgres semi-sync 把 <code>synchronous_commit</code> 设 <code>remote_apply</code> 比 <code>on</code> 多保证什么？代价？</li>
+</ol>
+
+<h2>深入资源</h2>
+<ul>
+<li><strong>《Designing Data-Intensive Applications》Ch 5 — Replication</strong>（Kleppmann）：本主题最权威单章。leader-based / multi-leader / leaderless 的完整谱系。</li>
+<li><strong>GitHub 2018-10-21 Incident Report</strong>：<code>github.blog/2018-10-30-oct21-post-incident-analysis</code>。跨区域 auto-failover 灾难的教科书级 RCA。</li>
+<li><strong>Amazon Dynamo (2007) + Aurora (2017) papers</strong>：leaderless quorum 与存算分离 quorum 的奠基论文。</li>
+<li><strong>Jepsen 测试系列</strong>（Kyle Kingsbury / aphyr.com）：MongoDB / Redis / etcd / Postgres 在网络分区下的真实行为，颠覆官方宣传的『一致性』承诺。</li>
+<li><strong>Marc Brooker — "It's Time to Replace TCP"</strong> 系列博客：复制底层的网络与超时直觉。</li>
+<li><strong>Patroni 文档 + Zalando 工程博客</strong>：Postgres 生产 HA 的工业级参考。</li>
+<li><strong>Vitess 官方文档 — Reparenting</strong>：MySQL failover 工程化最完整的开源实现。</li>
+</ul>
+
+<h2>深入思考</h2>
+
+<details>
+<summary>1. 为什么 Spanner / CockroachDB 这种 Raft 多数派写延迟反而比传统 semi-sync 主从『更稳定』？这跟 tail latency 有什么关系？</summary>
+<div class="answer">
+<p>表面看 Raft 写需要等多数派 ACK（N=3 时等 2 个），传统 semi-sync 也是等 1 个副本，应该差不多。差异在 <strong>谁来等谁</strong>：</p>
+<ul>
+<li><strong>Semi-sync</strong>：通常等『固定那一个 sync replica』。这个副本卡了（GC、磁盘 stall、网络丢包），主库写就卡。即使另外两个副本都健康也不行。Tail latency = max(leader, sync_replica)。</li>
+<li><strong>Raft 多数派</strong>：等『最快的 N/2+1 个』。N=3 时 2/3，意味着自动避开 1 个最慢的副本。Tail latency ≈ median 副本延迟，而非 max。</li>
+</ul>
+<p>这就是分布式系统经典的 <em>tail tolerance</em> 设计：通过『多数派 + 不指定哪个』，把单节点尾延迟从 critical path 移除。Google 在 Spanner 论文里详细讨论过这点，Aurora 6 副本要求 4/6 ACK 也是同样思路（自动跳过最慢两个）。</p>
+<p>反过来代价是：（a）至少 3 节点（2 节点 Raft 退化），成本更高；（b）实现复杂度（leader election、log compaction、配置变更）远超主从。所以小规模 OLTP 仍偏 semi-sync，超大规模 / 全球部署用 Raft 类。<strong>从 semi-sync 到 quorum 是『可用性 - 复杂度』曲线上的明确升级，而非简单替换</strong>。</p>
+</div>
+</details>
+
+<details>
+<summary>2. GitHub 2018 那次 outage，技术上『自动 failover 不要跨区域』就能避免吗？还是更深层？为什么 Orchestrator 没识别那是『43 秒网络分区』而不是『真主库挂了』？</summary>
+<div class="answer">
+<p>表层结论确实是『不要跨区域 auto-failover』，但更深层是 <em>分布式系统中『故障检测』本质是不完美的</em>——FLP 不可能定理告诉我们，异步系统中不可能既正确又完整地检测故障。43 秒网络分区和『主库真挂』在 follower 视角完全一样：心跳没了。</p>
+<ul>
+<li><strong>选择是 trade-off，不是『正确答案』</strong>：等更久（比如 60 秒）→ RTO 变差；不等 → 误判率高。GitHub 当时阈值是几秒。</li>
+<li><strong>真正的根因是『一致性边界 ≠ 故障检测边界』</strong>。跨区域时，detector 在一个区域，主在另一区域，detector 看不到主，但主自己还活着、还在接受写（被网络隔离的客户端的写）。这种『活分区』是最危险的。</li>
+<li><strong>修复思路（GitHub 后来采用）</strong>：（a）跨区域 failover 必须人工确认；（b）每个 region 内部用 Raft 选主，跨 region 只做 read replica，不参与选主；（c）增加 quorum-style fencing——新主必须能联系多数 region 才接受写。</li>
+<li><strong>系统设计哲学</strong>：『可恢复性』优于『高可用性』。多扛 5 分钟 downtime 远好于 24 小时数据修复。Auto 自动化时，要为最坏情况设计——『如果它判错了我能多快回滚』比『它有多准』更重要。</li>
+</ul>
+<p>类比：自动驾驶车在城市道路。Tesla 选『大胆自动 + 偶尔追尾』；Waymo 选『谨慎自动 + 必要时人工接管』。GitHub 那次是前者哲学撞墙，转向后者。<strong>分布式系统的成熟度不是『多自动化』而是『多懂得在哪里停下来等人』</strong>。</p>
+</div>
+</details>
+
+<details>
+<summary>3. 容量估算：100 万 DAU 的 SaaS，主 Postgres 10k 写 QPS、读 50k QPS。CFO 想省钱问：『真的需要 5 个 read replica 吗？能不能砍到 2 个？』给一个有数字的分析。</summary>
+<div class="answer">
+<p>砍副本前要把『副本承担什么职责』拆开。一刀切回答都是错的。</p>
+<p><strong>副本的 5 种职责，每种对副本数的需求不同：</strong></p>
+<ul>
+<li><strong>读容量扩展</strong>：50k 读 QPS / 单副本承载力（假设 15k QPS） = 至少 4 副本。砍到 2 个直接读爆。</li>
+<li><strong>HA / failover 备份</strong>：至少 1 个 semi-sync 同 AZ，不能复用读流量节点（避免 failover 时读容量瞬间减半）。</li>
+<li><strong>分析查询隔离</strong>：BI / 数据导出跑在专用副本，避免影响在线读。常 1 个 dedicated。</li>
+<li><strong>地理就近读</strong>：每个用户密集区域 1 个。欧美亚就是 3 个。</li>
+<li><strong>备份 / DR</strong>：1 个跨 region async 用于灾备。</li>
+</ul>
+<p><strong>分项加总</strong>：4（读）+ 1（HA sync）+ 1（分析）+ 跨 region 多个 ≈ 7-8。当前 5 个已经压缩了。</p>
+<p><strong>砍到 2 个的真实后果</strong>：</p>
+<ul>
+<li>读容量从 60k 降到 30k QPS（含 leader 兜底），峰值流量直接挂；</li>
+<li>分析查询打到 OLTP 节点，慢查询拖累整库；</li>
+<li>失去地理就近读，欧洲用户 P99 从 50ms 涨到 200ms；</li>
+<li>failover 时唯一可用副本被全流量打爆，可能雪崩。</li>
+</ul>
+<p><strong>替代方案（真省钱）</strong>：</p>
+<ol>
+<li>缓存（Redis）拦住 70% 读 → 副本数可以从 4 降到 2；</li>
+<li>分析查询走 CDC → ClickHouse / BigQuery，副本不再背 BI；</li>
+<li>跨 region 读副本只在欧洲（最大市场）保留，亚洲降级走 us-east + 边缘 CDN；</li>
+<li>HA 副本用便宜机型（不承读流量，只要追平 WAL）。</li>
+</ol>
+<p><em>给 CFO 的回答</em>：不能盲砍。但可以把 8 万/月（5 副本 × r6i.4xlarge）优化到 4 万/月——前提是先投资 Redis 集群、CDC 管线、监控。这是『把成本从硬件移到工程』，工程一次性投入，长期省。</p>
+<p>『副本数』从来不是孤立配置，是整个读路径架构的结果。</p>
+</div>
+</details>
+
+<details>
+<summary>4. CRDT 听起来是 multi-leader 冲突的银弹（自动合并、无需协调）。它有什么硬性限制？为什么 Google Docs / Figma 即使用 OT/CRDT 也仍然需要一个 server-side authority？</summary>
+<div class="answer">
+<p>CRDT（Conflict-free Replicated Data Type）确实把『合并』数学化，但有几条硬约束让它不能替代 server authority：</p>
+<ul>
+<li><strong>(a) 只对『结构化数据』有效</strong>。Counter、Set、Map 这种有代数性质（结合律、交换律、幂等）的可以；复杂业务规则（库存扣减需要 ≥ 0）、有副作用（发邮件）的写无法 CRDT 化。</li>
+<li><strong>(b) 元数据膨胀</strong>。OR-Set 等需要为每个元素记 actor+timestamp，删除后还要保留 tombstone 防止『复活』；大文档 CRDT 元数据是内容本身的 10-100 倍，长期使用必须 GC，GC 又要协调——回到协调问题。</li>
+<li><strong>(c) 不能表达『最近发生』</strong>。CRDT 合并是 commutative，意味着不知道事件真实顺序。『先收到一条消息，再回复』在 CRDT 视角可能颠倒（commutative 不保 causal）。</li>
+<li><strong>(d) 权限、审计、计费需要 ground truth</strong>。两个客户端都加了同一个 doc 的协作者，CRDT 合并的并集是正确的，但『谁先加』『何时加』决定了计费起点——必须有 server 仲裁。</li>
+<li><strong>(e) 实时协作要『其他人正在做什么』的 awareness</strong>。光标位置、选区高亮不是 CRDT 状态（这些是 ephemeral），必须有 hub 转发。</li>
+</ul>
+<p><strong>Figma 的真实架构</strong>：CRDT 处理图形对象（图层 z-order、节点属性 CRDT 化），但 server 负责会话管理、权限、版本快照、跨用户协调。Server 不是『状态权威』而是『协调与持久化中心』。Google Docs 类似——OT 算法在客户端协调编辑，server 负责接受、序列化、广播 + 保存。</p>
+<p><strong>结论</strong>：CRDT 是『多写不冲突合并』的工具，不是『完全无 server』的架构。它把 server 的角色从『仲裁每一次写』降到『协调元事件 + 持久化』。理解这一点能避免『用 CRDT 重写一切』的陷阱。<em>真正 leaderless 的系统几乎不存在；只是 leader 的职责被压缩到了最小</em>。</p>
+</div>
+</details>
+
+<details>
+<summary>5. 跨章节：分片 (Day 4) + 复制 (Day 5) 一起部署，故障域怎么算？比如 32 shard × 3 副本 = 96 节点，一个 AZ 挂了，业务可用性是？</summary>
+<div class="answer">
+<p>分片和复制是正交概念但故障域必须一起算。简单情况下：</p>
+<ul>
+<li><strong>跨 AZ 部署</strong>：每个 shard 的 3 个副本分布在 3 个 AZ。一个 AZ 挂 → 每个 shard 都失去 1 副本，剩 2/3 副本 → 仍可写（多数派存活）。可用性几乎 100%。</li>
+<li><strong>同 AZ 部署</strong>：3 副本都在同 AZ → 一个 AZ 挂 = 整个 shard 失效。32 shard 全挂 = 业务完全不可用。</li>
+<li><strong>混合（最常见）</strong>：leader + 1 sync replica 同 region 不同 AZ；1 async replica 跨 region。AZ 挂 → 失去 leader 或 sync replica 之一，failover 到剩余可用副本。</li>
+</ul>
+<p><strong>关键洞察：分片放大了 AZ 故障的影响面</strong>。单库时 AZ 挂只影响 1 个库；32 shard 时 AZ 挂触发 32 次并发 failover——orchestrator 容量、网络容量、客户端重试都被同时压测。GitHub、Slack 都遇到过『AZ 挂 → 多 shard 同时 failover → 控制面被打爆 → 整体雪崩』。</p>
+<p><strong>缓解措施</strong>：</p>
+<ul>
+<li>Failover 流量整形（rate limit promotion to 5 shard/sec）；</li>
+<li>客户端重试加 jitter + exponential backoff，避免 thundering herd；</li>
+<li>定期演练 AZ 级故障（Chaos engineering），暴露隐藏的同步串行点；</li>
+<li>容量规划按『1 AZ 挂 + 1 故障域同时不可用』算（N-2 而非 N-1）。</li>
+</ul>
+<p><strong>数量级</strong>：96 节点跨 3 AZ 均匀分布，单 AZ 挂理论 100% 可用，但实际通常下降到 95-98%（部分 shard failover 期间 5-30 秒不可写、客户端重试风暴、监控告警噪声）。Multi-region 部署（active-active 跨 region）能进一步把单 region 故障降到 100% 可用，但代价是冲突合并 + 跨区域写延迟。</p>
+<p><em>面试金句</em>：『分片是水平扩展，复制是故障保险，两者解决不同问题且互相放大对方的复杂度——任何只谈一个的方案都是不完整的』。</p>
+</div>
+</details>
+
+</div></body></html>
