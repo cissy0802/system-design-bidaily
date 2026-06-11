@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 21 · Monitoring & Observability — System Design Bi-daily</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"SF Pro Display","Noto Sans SC",sans-serif;background:#0e1419;color:#d4dae0;line-height:1.75}
+.container{max-width:820px;margin:0 auto;padding:24px 20px 60px}
+header{padding:40px 0 28px;border-bottom:1px solid rgba(100,200,255,0.15);margin-bottom:32px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;font-family:"SF Mono",Menlo,monospace;font-size:0.78rem}
+.tag{padding:3px 10px;border-radius:4px;background:rgba(100,200,255,0.12);color:#64c8ff;border:1px solid rgba(100,200,255,0.25)}
+.tag.diff{background:rgba(94,234,212,0.1);color:#5eead4;border-color:rgba(94,234,212,0.3)}
+.tag.day{background:rgba(255,180,80,0.1);color:#ffb450;border-color:rgba(255,180,80,0.25)}
+h1{font-size:1.75rem;font-weight:800;background:linear-gradient(135deg,#64c8ff 0%,#5eead4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:0.5px;line-height:1.3}
+h1 .en{display:block;font-size:1rem;color:#7a8590;-webkit-text-fill-color:#7a8590;margin-top:6px;font-weight:500}
+h2{font-size:1.2rem;color:#5eead4;margin:36px 0 14px;padding-left:12px;border-left:3px solid #5eead4}
+h3{font-size:1rem;color:#64c8ff;margin:20px 0 10px;font-weight:600}
+p{margin:10px 0;color:#c8cfd6}
+ul,ol{margin:10px 0 10px 22px;color:#c8cfd6}
+li{margin:6px 0}
+strong{color:#e8eef5;font-weight:600}
+em{color:#5eead4;font-style:normal;font-weight:500}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;background:rgba(100,200,255,0.1);color:#5eead4;padding:1px 6px;border-radius:3px;font-size:0.88em}
+pre{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:12px 0;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:0.84rem;line-height:1.55;color:#c8cfd6}
+pre code{background:none;color:inherit;padding:0;font-size:1em}
+.mermaid{background:#0a0f14;border:1px solid rgba(100,200,255,0.15);border-radius:6px;padding:18px;margin:14px 0;text-align:center;overflow-x:auto;cursor:zoom-in;transition:border-color 0.15s}
+.mermaid:hover{border-color:rgba(100,200,255,0.4)}
+.mermaid svg{width:100%;max-width:100%;height:auto;min-height:280px}
+.lightbox{position:fixed;inset:0;background:rgba(8,12,18,0.96);z-index:9999;display:none;align-items:center;justify-content:center;padding:24px;cursor:grab;backdrop-filter:blur(4px);overflow:hidden}
+.lightbox.open{display:flex}
+.lightbox.dragging{cursor:grabbing}
+.lightbox svg{width:auto;height:auto;max-width:96vw;max-height:92vh;transform-origin:center center;will-change:transform}
+.lightbox .hint{position:fixed;top:16px;right:20px;font-size:0.78rem;color:#7a8590;font-family:"SF Mono",Menlo,monospace;pointer-events:none}
+.callout{background:rgba(255,180,80,0.06);border-left:3px solid #ffb450;padding:12px 14px;margin:14px 0;border-radius:4px;font-size:0.94rem}
+.callout strong{color:#ffb450}
+.tradeoff{background:rgba(100,200,255,0.05);border:1px solid rgba(100,200,255,0.2);border-radius:6px;padding:12px 14px;margin:12px 0;font-size:0.94rem}
+.case{background:rgba(94,234,212,0.05);border-left:3px solid #5eead4;padding:12px 14px;margin:12px 0;border-radius:4px;font-size:0.94rem}
+.case strong{color:#5eead4}
+.nav{margin-top:50px;padding-top:24px;border-top:1px solid rgba(100,200,255,0.15);text-align:center}
+.nav a{color:#64c8ff;text-decoration:none;font-size:0.92rem;padding:8px 16px;border:1px solid rgba(100,200,255,0.3);border-radius:4px;transition:all 0.15s}
+.nav a:hover{background:rgba(100,200,255,0.1)}
+table{width:100%;border-collapse:collapse;margin:14px 0;font-size:0.9rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid rgba(100,200,255,0.15)}
+th{color:#64c8ff;font-weight:600;background:rgba(100,200,255,0.05)}
+details{background:rgba(100,200,255,0.04);border:1px solid rgba(100,200,255,0.18);border-radius:6px;padding:12px 16px;margin:10px 0;transition:all 0.15s}
+details:hover{border-color:rgba(100,200,255,0.35)}
+details[open]{background:rgba(94,234,212,0.05);border-color:rgba(94,234,212,0.3)}
+details summary{font-weight:600;color:#e8eef5;list-style:none;outline:none;cursor:pointer;display:flex;align-items:flex-start;gap:10px;font-size:0.96rem}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:'▶';color:#64c8ff;font-size:0.75em;transition:transform 0.2s;flex-shrink:0;margin-top:5px}
+details[open] summary::before{transform:rotate(90deg);color:#5eead4}
+details .answer{margin-top:12px;padding-top:12px;border-top:1px dashed rgba(100,200,255,0.18);color:#c8cfd6;font-size:0.93rem;line-height:1.7}
+details .answer ul,details .answer ol{margin:6px 0 6px 22px}
+@media(max-width:600px){h1{font-size:1.4rem}h2{font-size:1.05rem}pre{font-size:0.72rem}}
+</style>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:true,theme:'base',flowchart:{useMaxWidth:true,htmlLabels:true,nodeSpacing:50,rankSpacing:60},themeVariables:{primaryColor:'#1a2530',primaryTextColor:'#e8eef5',primaryBorderColor:'#64c8ff',lineColor:'#5eead4',secondaryColor:'#0e1419',tertiaryColor:'#0a0f14',background:'#0a0f14',mainBkg:'#1a2530',secondBkg:'#0e1419',textColor:'#d4dae0',fontFamily:'-apple-system,"SF Pro Display",sans-serif',fontSize:'16px'}});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const lb=document.createElement('div');lb.className='lightbox';
+  lb.innerHTML='<span class="hint">scroll = zoom · drag = pan · Esc / click bg = close</span>';
+  document.body.appendChild(lb);
+  let scale=1,panX=0,panY=0,dragging=false,moved=false,lx=0,ly=0;
+  const apply=()=>{const s=lb.querySelector('svg');if(s)s.style.transform=`translate(${panX}px,${panY}px) scale(${scale})`};
+  const reset=()=>{scale=1;panX=0;panY=0};
+  const close=()=>{lb.classList.remove('open');const s=lb.querySelector('svg');if(s)s.remove();reset()};
+  document.addEventListener('click',e=>{
+    if(e.target.closest('.lightbox')){if(moved){moved=false;return}close();return}
+    const w=e.target.closest('.mermaid');if(!w)return;
+    const svg=w.querySelector('svg');if(!svg)return;
+    const c=svg.cloneNode(true);c.removeAttribute('style');
+    c.style.maxWidth='96vw';c.style.maxHeight='92vh';
+    lb.appendChild(c);lb.classList.add('open');reset();apply();
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  lb.addEventListener('wheel',e=>{
+    if(!lb.classList.contains('open'))return;
+    e.preventDefault();
+    const svg=lb.querySelector('svg');if(!svg)return;
+    const ns=Math.max(0.3,Math.min(10,scale*(1-e.deltaY*0.002)));
+    const r=svg.getBoundingClientRect();
+    const cx=e.clientX-(r.left+r.width/2),cy=e.clientY-(r.top+r.height/2);
+    const k=ns/scale-1;panX-=cx*k;panY-=cy*k;scale=ns;apply();
+  },{passive:false});
+  lb.addEventListener('mousedown',e=>{
+    if(!lb.classList.contains('open'))return;
+    dragging=true;moved=false;lx=e.clientX;ly=e.clientY;lb.classList.add('dragging');e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const dx=e.clientX-lx,dy=e.clientY-ly;
+    if(Math.abs(dx)+Math.abs(dy)>3)moved=true;
+    panX+=dx;panY+=dy;lx=e.clientX;ly=e.clientY;apply();
+  });
+  document.addEventListener('mouseup',()=>{dragging=false;lb.classList.remove('dragging')});
+});
+</script>
+</head><body><div class="container">
+
+<header>
+<div class="meta">
+<span class="tag day">Day 21</span>
+<span class="tag diff">Medium</span>
+<span class="tag">Observability</span>
+<span class="tag">Metrics/Logs/Traces</span>
+<span class="tag">SLO</span>
+<span class="tag">OpenTelemetry</span>
+</div>
+<h1>Observability — When the System Breaks, Can You Ask "Why"?<span class="en">Metrics, Logs, Traces, OpenTelemetry & SLO-driven On-call</span></h1>
+</header>
+
+<h2>Problem Scenario + Requirements</h2>
+<p>Design an observability platform serving <strong>1000+ microservices and a million spans per second</strong>. One morning p99 latency jumps from 80ms to 2s and users start complaining — you must pinpoint <strong>which service, which dependency, which class of request broke, within 5 minutes</strong>. This isn't "add a few dashboards"; it's a system whose data volume rivals the business itself.</p>
+<p><strong>Monitoring answers "is the system healthy?" (known problems); observability answers "why isn't it?" (unknown problems).</strong> The former is predefined dashboards and alerts; the latter is the ability to slice and drill into any dimension during an incident.</p>
+<ul>
+<li><strong>Data volume</strong>: 1M spans/s, tens to hundreds of spans per trace; tens of millions of active metric time series; TBs of logs/day.</li>
+<li><strong>Latency SLO</strong>: alert end-to-end &lt; 1 min; query p95 &lt; 2s (engineers can't wait during an incident).</li>
+<li><strong>Cost</strong>: observability bills often hit 10-30% of infra spend, so storing every trace is infeasible → <em>sampling</em> is the core design lever.</li>
+<li><strong>Retention</strong>: high-res metrics for days, downsampled for a year; traces for days; logs per compliance.</li>
+<li><strong>Cardinality</strong>: the cartesian product of metric labels drives storage cost to the moon — the dimension that blows up most easily.</li>
+</ul>
+
+<h2>High-Level Architecture</h2>
+<pre class="mermaid">
+graph LR
+    APP["Service + OTel SDK<br/><i>instrument / propagate ctx</i>"]
+    COL["OTel Collector<br/><i>batch · sample · route</i>"]
+    M["Metrics TSDB<br/><i>Prometheus / Mimir</i>"]
+    T["Trace store<br/><i>Tempo / Jaeger</i>"]
+    L["Log store<br/><i>Loki / ES</i>"]
+    Q["Query + correlate<br/><i>Grafana</i>"]
+    A["Alert engine<br/><i>Alertmanager</i>"]
+    OC["On-call<br/><i>PagerDuty</i>"]
+
+    APP -->|OTLP| COL
+    COL --> M
+    COL --> T
+    COL --> L
+    M --> Q
+    T --> Q
+    L --> Q
+    M --> A -->|burn rate exceeded| OC
+
+    classDef svc fill:#1a2530,stroke:#64c8ff,color:#e8eef5
+    classDef pipe fill:#0e2030,stroke:#5eead4,color:#e8eef5
+    classDef store fill:#1a1a30,stroke:#ffb450,color:#e8eef5
+    classDef sink fill:#2a1530,stroke:#ff7ab6,color:#e8eef5
+    class APP svc
+    class COL,Q pipe
+    class M,T,L store
+    class A,OC sink
+</pre>
+<p style="font-size:0.88rem;color:#7a8590;text-align:center;margin-top:-6px">SDK instruments uniformly → Collector decouples app from backend via sampling/routing → three signals cross-link via trace_id / exemplar</p>
+<p><strong>Key design</strong>: apps depend only on the OTel SDK + Collector, never on a specific backend vendor (avoiding lock-in). The Collector is the control point — sampling, rate limiting, PII scrubbing, downsampling all happen here, so <strong>changing the sampling policy doesn't require redeploying hundreds of services</strong>.</p>
+
+<h2>Key Technical Points</h2>
+
+<h3>1. The Three "Pillars" Metrics / Logs / Traces — not three tools, but three slices of one dataset</h3>
+<p><strong>Principle</strong>: <em>Metrics</em> are pre-aggregated numeric time series (counter/gauge/histogram) — cheap, ideal for dashboards and alerts, but only the dimensions you predefined. <em>Logs</em> are discrete events — richest information but expensive to search and hard to correlate without structure. <em>Traces</em> stitch one request's cross-service causal chain into a span tree, answering "which hop is slow." Their fundamental difference is <strong>cardinality tolerance</strong>: adding a high-cardinality label (like user_id) to a metric explodes time series into the millions; traces/structured-logs are built for high cardinality.</p>
+<div class="tradeoff">
+<strong>Trade-off:</strong>
+<ul>
+<li><strong>Metrics</strong>: ✅ storage is O(series count), independent of request volume; queries in ms; ❌ fixed dimensions, can't drill to a single request, high cardinality = bankruptcy.</li>
+<li><strong>Logs</strong>: ✅ richest, flexible; ❌ cost grows linearly with traffic, hard to correlate across services (unless they carry trace_id).</li>
+<li><strong>Traces</strong>: ✅ causal chain + cross-service latency attribution; ❌ must be sampled (full is too costly), instrumentation is intrusive, sampling hides rare requests.</li>
+</ul>
+The right move: <strong>use a metric to spot the anomaly → use an exemplar to jump to a representative trace → use trace_id to pull all logs for that request</strong>. The three pillars are stitched by <code>trace_id</code>, not three isolated silos.</div>
+<div class="case">
+<strong>Real-world:</strong>
+<ul>
+<li><strong>Honeycomb / Charity Majors</strong>: publicly critique "three pillars" — storing data three times and manually correlating across tools is an anti-pattern; they advocate <em>arbitrarily-wide structured events</em> as a single source of truth, with high cardinality as the soul of observability (<a href="https://www.honeycomb.io/blog/time-to-version-observability-signs-point-to-yes">Observability 2.0</a>).</li>
+<li><strong>Prometheus + Grafana</strong>: metrics carry exemplars (trace_id), dashboards jump to Tempo traces in one click — the de-facto open-source stitching solution.</li>
+<li><strong>Google</strong>: internally Monarch (metrics) + Dapper (tracing) divide the work; Borgmon is the spiritual ancestor of Prometheus.</li>
+</ul></div>
+
+<h3>2. Distributed Tracing & OpenTelemetry — context propagation + the sampling dilemma</h3>
+<p><strong>Principle</strong>: for a request through A→B→C, attributing all spans to one tree relies on <em>context propagation</em>: the entry point generates a <code>trace_id</code>, each hop creates a <code>span_id</code> and records a <code>parent_id</code>, passed downstream via HTTP headers (W3C <code>traceparent</code>). OpenTelemetry (OTel) unifies the API/SDK/protocol (OTLP), decoupling instrumentation from backend. The core hard problem is <strong>sampling</strong>: storing every span at 1M/s is bankruptcy, but sampling may drop the very failing trace.</p>
+<div class="tradeoff">
+<strong>Head vs Tail sampling:</strong>
+<ul>
+<li><strong>Head sampling</strong>: decide at the entry point whether to keep a trace (e.g. 1%). ✅ simple, stateless, low overhead (Dapper sampled high-traffic services down to 0.01%); ❌ at decision time you don't yet know if it'll error/be slow, so <strong>failing requests are likely dropped</strong>.</li>
+<li><strong>Tail sampling</strong>: buffer all spans of a trace, then after it finishes decide based on "any error / &gt; 1s." ✅ keeps 100% of slow/error traces; ❌ the Collector must gather all spans by trace_id (stateful, needs consistent-hash routing), high memory pressure, higher latency.</li>
+<li><strong>Compromise</strong>: a low fixed head sample as a floor + tail rules "keep 100% of errors and slow requests."</li>
+</ul></div>
+<pre><code># OTel Collector tail_sampling policy (pseudo-config)
+processors:
+  tail_sampling:
+    decision_wait: 10s          # wait for a trace's spans to gather
+    policies:
+      - type: status_code       # keep all errors
+        status_code: {status_codes: [ERROR]}
+      - type: latency           # keep all slow
+        latency: {threshold_ms: 1000}
+      - type: probabilistic     # sample the rest at 1%
+        probabilistic: {sampling_percentage: 1}
+# ⚠️ With multiple Collectors, spans of the same trace_id must route
+#    to the same instance (load-balancing exporter hashes by trace_id),
+#    otherwise they can't be gathered.
+</code></pre>
+<div class="case">
+<strong>Real-world:</strong>
+<ul>
+<li><strong>Google Dapper</strong> (2010 paper, Sigelman et al.): the seminal distributed tracing work; high-traffic services sampled as low as <em>0.01%</em> without hurting analysis; later spawned OpenTracing/OpenTelemetry. <a href="https://research.google/pubs/dapper-a-large-scale-distributed-systems-tracing-infrastructure/">Paper</a></li>
+<li><strong>OpenTelemetry</strong>: a CNCF project merging OpenTracing + OpenCensus, now the de-facto cross-language instrumentation standard, fully supported by AWS / Azure / Datadog.</li>
+<li><strong>Uber Jaeger</strong>: large-scale production tracing, open-sourced into CNCF; adaptive sampling dynamically adjusts the per-second sampling quota per service by traffic.</li>
+</ul></div>
+
+<h3>3. SLI / SLO / SLA & Error Budget — turning "reliability" into a budget you can decide on</h3>
+<p><strong>Principle</strong>: <em>SLI</em> (indicator) = good requests / total, e.g. "fraction of requests under 200ms." <em>SLO</em> (objective) = an internal threshold on the SLI, e.g. "99.9% monthly." <em>SLA</em> (agreement) = external promise + penalty, usually looser than the SLO (a buffer). The key invention is <strong>error budget = 1 − SLO</strong>: 99.9% means you're allowed to be "broken" for 43 minutes a month. This turns reliability from a "higher is always better" shouting match into <strong>a budget you can spend</strong> — under budget, ship boldly (innovation); over budget, freeze releases and fix stability. It aligns the incentives of product teams and SRE.</p>
+<div class="tradeoff">
+<strong>Alerting with error budget: static thresholds vs burn rate</strong>
+<ul>
+<li><strong>Static threshold alerts</strong> (e.g. error rate &gt; 1%): either too sensitive (paging all night, alert fatigue) or too dull.</li>
+<li><strong>Burn-rate alerts</strong> (Google SRE recommended): monitor "how many times faster than allowed you're consuming the error budget." <em>Multi-window multi-burn-rate</em>: fast burn (2% of monthly budget in 1h, 14.4x) = page immediately; slow burn (a 6-hour steady leak) = open a ticket. Catches disasters yet ignores blips.</li>
+</ul></div>
+<pre><code># Multi-window burn-rate alert (PromQL idea)
+# Page only when both 1h and 5m windows exceed 14.4x (debounce)
+(
+  error_budget_burn_rate{window="1h"} > 14.4
+  and
+  error_budget_burn_rate{window="5m"} > 14.4
+)
+# burn_rate = (1 - SLI) / (1 - SLO)
+#   = actual error rate / budgeted error rate;  >1 means overspending
+</code></pre>
+<div class="case">
+<strong>Real-world:</strong>
+<ul>
+<li><strong>Google SRE</strong>: error budget is the core idea of the SRE Book — "100% is the wrong reliability target"; <a href="https://sre.google/workbook/alerting-on-slos/">the SRE Workbook's Alerting on SLOs</a> details the multi-window multi-burn-rate formula.</li>
+<li><strong>Public status pages</strong>: external SLAs (e.g. "99.95% or refund") are universally a notch looser than internal SLOs, leaving operational buffer.</li>
+</ul></div>
+
+<h3>4. Metric Aggregation Pitfalls — why you can't average p99</h3>
+<p><strong>Principle</strong>: percentiles are <strong>not re-aggregatable</strong>. Averaging the p99 of ten machines does NOT yield the global p99 — it's mathematically wrong. The correct way: clients emit a <em>histogram</em> (cumulative bucket counts), and you <em>sum</em> bucket counts across machines, then apply <code>histogram_quantile()</code> at query time. The <em>summary</em> type computes quantiles on the client, so it cannot be merged across instances. This is the core reason Prometheus recommends histogram &gt; summary.</p>
+<div class="tradeoff">
+<strong>Histogram vs Summary:</strong>
+<ul>
+<li><strong>Histogram</strong>: ✅ buckets are summable across instances, any quantile over any window; ❌ accuracy depends on bucket boundaries, many buckets = more series.</li>
+<li><strong>Summary</strong>: ✅ exact client-side quantiles, cheap queries; ❌ <strong>not aggregatable</strong>, quantiles and windows are hard-coded at instrumentation.</li>
+<li><strong>Key metric design</strong>: watch <em>RED</em> (Rate / Errors / Duration, request-facing) or <em>USE</em> (Utilization / Saturation / Errors, resource-facing). Always watch percentiles, never the mean — the mean hides outliers; p50 fine while p99 explodes is the norm.</li>
+</ul></div>
+<div class="case">
+<strong>Real-world:</strong>
+<ul>
+<li><strong>Prometheus official docs</strong>: explicitly warn that "aggregating percentiles is meaningless"; only histogram + <code>histogram_quantile()</code> gives correct cross-instance quantiles (<a href="https://prometheus.io/docs/practices/histograms/">Histograms and summaries</a>).</li>
+<li><strong>Prometheus Native Histograms</strong>: a next-gen sparse histogram with exponentially auto-spaced buckets, resolving the accuracy/cost dilemma of fixed buckets.</li>
+</ul></div>
+
+<h2>Scaling & Optimization</h2>
+<ul>
+<li><strong>Cardinality governance</strong>: review metric labels before launch; use the Collector to drop/relabel high-cardinality labels before ingest, pushing user_id-class data into traces/logs instead of metrics.</li>
+<li><strong>Downsampling</strong>: keep raw 15s resolution for days, 5m/1h aggregates for a year (Thanos / Mimir / VictoriaMetrics). Tier cold data to object storage to save cost.</li>
+<li><strong>Metric → trace jump</strong>: exemplars embed a representative trace_id into histogram buckets, so a p99 spike on a dashboard drills straight into that slow trace.</li>
+<li><strong>Multi-region / multi-tenant</strong>: per-region collection with a global aggregated view; tenants need query isolation and quotas so one team's bad query can't crush the shared TSDB.</li>
+<li><strong>eBPF auto-instrumentation</strong>: non-intrusive capture of syscalls/network latency (Pixie / Cilium), filling the blind spots of code-level instrumentation.</li>
+</ul>
+
+<h2>Common Pitfalls + Interview Follow-ups</h2>
+<div class="callout"><strong>1. Watching the mean, not percentiles</strong>: an 80ms average looks lovely, but p99 is 2s — 1% of users suffer, and they're often the high-value heavy users. Always monitor percentiles.</div>
+<div class="callout"><strong>2. High-cardinality labels blow up the TSDB</strong>: adding <code>user_id</code> / <code>request_id</code> / full URL to a metric explodes series from thousands to millions, OOMing Prometheus. High-cardinality dimensions belong in traces/logs.</div>
+<div class="callout"><strong>3. Head sampling drops failing requests</strong>: at 1% head sampling, an occasional 0.1% error rate is almost never captured, leaving no trace to inspect during an incident. Errors/slow requests need a tail-sampling safety net.</div>
+<div class="callout"><strong>4. Alert fatigue</strong>: hundreds of static-threshold alerts, 80% noise → on-call goes numb → real incidents get drowned. Switch to SLO burn-rate alerts and strictly separate pages (wake someone now) from tickets.</div>
+<div class="callout"><strong>5. The observability system itself goes down</strong>: when monitoring shares infra with the monitored system, an outage blinds the monitoring too. The observability stack needs an independent deployment and failure domain, plus external black-box probes as a backstop.</div>
+<p style="margin-top:14px"><strong>Frequent interview questions:</strong> ① What does each of metrics/logs/traces solve, and why can't you use just one? ② Head vs tail sampling trade-offs; how does tail guarantee a trace's spans are gathered? ③ How do you set SLO/error budget, and why is multi-window burn-rate alerting better than static thresholds? ④ Why can't you average p99 across machines? Histogram vs summary? ⑤ How do you control observability cost (the trio: sampling + cardinality + downsampling)?</p>
+
+<h2>Deep-Dive Resources</h2>
+<ul>
+<li><strong>Site Reliability Engineering & The SRE Workbook</strong> (Google, free at sre.google): the authoritative source on SLI/SLO/error budget and burn-rate alerting.</li>
+<li><strong>Dapper, a Large-Scale Distributed Systems Tracing Infrastructure</strong> (Google, 2010): the foundational paper on distributed tracing and sampling.</li>
+<li><strong>Prometheus docs — Histograms and summaries</strong>: the percentile-aggregation pitfall and histogram selection.</li>
+<li><strong>Honeycomb blog / Charity Majors (charity.wtf)</strong>: observability 2.0, high cardinality, the critique of the three pillars.</li>
+<li><strong>Designing Data-Intensive Applications</strong> (Kleppmann), Ch. 1: discussion of monitoring/observability within reliability and maintainability.</li>
+</ul>
+
+<h2>Food for Thought (click to expand)</h2>
+
+<details>
+<summary>1. Adding a user_id label to a metric looks convenient — why is it a disaster? Do the math: 10M users × 10 other label dimensions?</summary>
+<div class="answer">
+<p>TSDB cost is proportional to <strong>active time series count</strong>, not request volume. Each unique label combination = one independent series.</p>
+<ul>
+<li>Without user_id: say 5 endpoints × 4 statuses × 3 regions = 60 series, trivial.</li>
+<li>With user_id: 60 × 10M = <strong>600M series</strong>. Each costs several KB (labels + recent samples + index), so several TB of RAM → Prometheus OOMs.</li>
+</ul>
+<p><strong>Essence</strong>: metrics suit "bounded, low-cardinality" dimensions (enums). user_id, request_id, full URL, error stack are "unbounded, high-cardinality" and belong in traces and structured logs — their cost grows with <em>events</em>, not the <em>cartesian product of dimensions</em>. This is exactly why Honeycomb advocates "wide events": high-cardinality queries are the heart of debugging, but you must store them in the right place. Governance: pre-launch label review, Collector-side relabel drops, and cardinality monitoring/alerts on suspected high-cardinality dimensions.</p>
+</div>
+</details>
+
+<details>
+<summary>2. Tail sampling waits for all spans of a trace before deciding. In a cluster of many Collectors, what thorny distributed problem does this introduce?</summary>
+<div class="answer">
+<p>Core tension: spans of one trace come from different services, arrive at different times, and may land on <strong>different Collector instances</strong>. To make a tail decision they must be gathered in one place.</p>
+<ul>
+<li><strong>Routing consistency</strong>: you need a load-balancing exporter layer that hashes by <code>trace_id</code> so the same trace always reaches the same backend Collector. During scale up/down, the hash ring changes and spans get misrouted during migration (like the resharding problem from Day 4).</li>
+<li><strong>State and memory</strong>: the Collector must buffer undecided spans (the decision_wait window, e.g. 10s). At high traffic this is huge memory pressure, and late/lost spans leave traces incomplete.</li>
+<li><strong>Decision latency</strong>: you must wait out the window before knowing whether to keep, so trace persistence has inherent latency, worse than head.</li>
+<li><strong>Spans outside the window</strong>: tail spans of very long traces (&gt; decision_wait) become orphans — either wrongly dropped or handled separately.</li>
+</ul>
+<p>This is why many teams use a hybrid: "low head sampling as a floor + tail only as a backstop for error/slow," limiting tail's state pressure to the few traces worth keeping.</p>
+</div>
+</details>
+
+<details>
+<summary>3. SLO at 99.9% or 99.99%? What's the real cost of one more nine? Why is "higher is always better" wrong?</summary>
+<div class="answer">
+<p>Each extra nine compresses allowed monthly downtime from 43 minutes (99.9%) to 4.3 minutes (99.99%) to 26 seconds (99.999%). The cost isn't linear but <strong>exponential</strong>:</p>
+<ul>
+<li><strong>Architecture cost</strong>: four nines needs multi-region redundancy and automated failover; five nines needs no single points and cross-region strong consistency — cost can multiply several times.</li>
+<li><strong>Velocity cost</strong>: a smaller error budget means less room to ship/experiment, locking down innovation. 99.999% means you can almost never deploy with downtime.</li>
+<li><strong>Diminishing returns</strong>: users and downstream dependencies often can't perceive reliability beyond "their own reliability + network jitter." If the user's own network is only 99.9%, your 99.999% is wasted money.</li>
+</ul>
+<p>So an SLO should be <strong>derived backward from business/user experience</strong> — "how reliable is reliable enough" — not engineers chasing perfection. 100% is the wrong target: it eliminates the error budget, effectively banning all change, and ironically becomes more fragile because you can't iterate. The right SLO is the line "just good enough that users don't complain," spending the rest of the budget on release velocity.</p>
+</div>
+</details>
+
+<details>
+<summary>4. Linking to Day 6 (Consistency): metrics themselves are "eventually consistent + lossy." What risk does this pose for alerting?</summary>
+<div class="answer">
+<p>Monitoring data is itself neither strongly consistent nor exact — often overlooked, yet deadly:</p>
+<ul>
+<li><strong>Collection delay</strong>: Prometheus scrapes on an interval (e.g. 15s), and alert evaluation has its own cycle, so end-to-end lag can be 30s-1min. When you say "alert within 1 min," count this in.</li>
+<li><strong>Sampling loss</strong>: after trace sampling, rare-event statistics are inherently distorted; estimating error rate from sampled data must multiply back the sampling rate, and small samples have high variance.</li>
+<li><strong>Aggregation loss</strong>: metrics are pre-aggregated; a p99 histogram's accuracy is bounded by bucket edges, and wrong edges systematically over/underestimate.</li>
+<li><strong>Scrape gaps</strong>: a briefly unreachable target = a data hole, so alert rules must distinguish "metric is 0" from "metric is missing" (use <code>absent()</code>), or when a service is fully down you fail to alert precisely because there's no data.</li>
+</ul>
+<p><strong>Design implication</strong>: alerts must tolerate the data's eventual consistency — use multi-window (short for acute, long to debounce), set a <code>for</code> duration to avoid single blips, and alert separately on "monitoring data itself missing." Never assume the number on the dashboard is the exact present truth.</p>
+</div>
+</details>
+
+<details>
+<summary>5. In an incident, what's the ideal drill-down path from "p99 alert" to "root-cause service"? What role does each pillar play on that chain?</summary>
+<div class="answer">
+<p>This is the ultimate test of observability's value — whether you can push MTTR down to minutes. The ideal chain:</p>
+<ol>
+<li><strong>Metric detects (What)</strong>: a burn-rate alert fires, the RED dashboard shows an endpoint's p99 jump 80ms→2s and error rate rising. Confirms "there's a problem, how big, since when."</li>
+<li><strong>Metric narrows (Where)</strong>: slice the metric by region/version/dependency, find only v2.3 + us-east requests are affected → suspect a release or a regional dependency.</li>
+<li><strong>Exemplar to Trace (Why-1)</strong>: from the exemplar of that p99 bucket, open a representative slow trace in one click; the span tree immediately shows "1.8s spent on the hop where service-C calls the DB" — root-cause service located.</li>
+<li><strong>Trace to Log (Why-2)</strong>: filter logs by that trace's trace_id, see service-C's DB connection-pool-exhausted error stack, confirming the mechanism.</li>
+</ol>
+<p><strong>Roles</strong>: metric = radar (cheap, full coverage, spots anomalies), trace = GPS (causal pinpoint to the hop), log = microscope (single-point detail). They're stitched by trace_id/exemplar; break any link and the drill-down snaps, leaving you to guess by hand — exactly the difference between "three disjoint tools" and true observability.</p>
+</div>
+</details>
+
+<div class="nav"><a href="index.en.html">← Back to index</a></div>
+</div>
+</body></html>
