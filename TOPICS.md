@@ -32,3 +32,15 @@
 - Day 28: 全文搜索与推荐集成 — BM25 + vector, 重排序, Multi-stage retrieval, Snippet 生成
 - Day 29: LLM 服务架构 — 请求路由与负载均衡, Streaming response, Prompt caching, Cost/latency/quality 三角
 - Day 30: AI 产品后端 — RAG 架构, Agent loop 服务化, Embedding 服务设计, 人机协同
+- Day 31: 实时系统 — WebRTC, 实时协作传输, 低延迟架构, 实时游戏后端
+- Day 32: 物联网与边缘 — IoT 数据摄取, 边缘计算, MQTT, 时序数据库
+- Day 33: 区块链与分布式账本 — 共识算法(PoW/PoS), 智能合约架构, 去中心化存储, 性能权衡
+- Day 34: 多租户 SaaS 架构 — 租户隔离, 数据分区, 资源配额, 计费集成
+- Day 35: 数据湖与湖仓 — 数据湖 vs 数仓 vs 湖仓, Iceberg/Delta, 元数据管理, 批流一体
+- Day 36: 工作流引擎 — Temporal/Airflow, Saga 编排, 持久化执行, 补偿事务
+- Day 37: 特征平台与 ML 基础设施 — 特征存储, 在线/离线一致, 模型服务, A/B 实验平台
+- Day 38: 全球化与多区域 — 数据驻留, 多活架构, 跨区域一致性, 延迟优化
+- Day 39: 隐私与合规架构 — GDPR 删除权, 数据脱敏, 审计追踪, 同意管理
+- Day 40: 成本与容量工程 — 容量规划, 成本归因, 自动扩缩容, 资源效率
+- Day 41: 混沌工程与韧性测试 — 故障注入, 游戏日, 韧性验证, 金丝雀深化
+- Day 42: 协作编辑系统 — OT vs CRDT, 冲突解决, 离线同步, Figma/Notion 架构
